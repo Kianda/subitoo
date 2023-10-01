@@ -22,6 +22,7 @@ Price tracker and crawler for [Subito.it](https://www.subito.it)
 
 ## Installation
 
+**I will publish *Subitoo* on the snapcraft.io/store asap**
 
 ```bash
 sudo snap install -work-in-progress-please-wait-
