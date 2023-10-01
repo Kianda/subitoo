@@ -1,0 +1,19 @@
+name: subitoo
+version: '0.1'
+summary: python test package
+description: "Price tracker and crawler for Subito.it"
+
+base: core22
+grade: stable
+confinement: strict
+
+apps:
+  subitoo:
+    command: bin/subitoo-cmd
+    plugs: [network]
+parts:
+  subitoo:
+    plugin: python
+    source: .
+    python-requirements:
+      - src/requirements.txt

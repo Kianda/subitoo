@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+deepdiff
+tabulate
+tinydb
+django-ratelimit2
+setuptools
