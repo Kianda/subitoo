@@ -1,6 +1,6 @@
 name: subitoo
 version: '0.1'
-summary: python test package
+summary: python subitoo package
 description: "Price tracker and crawler for Subito.it"
 
 base: core22
