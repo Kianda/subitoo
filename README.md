@@ -34,7 +34,7 @@ To enable notifications you need the **APPLICATION_TOKEN** and **USER_KEY** from
 
 You can copy your **USER_KEY** at the [Pushover homepage](https://pushover.net) after you logged in.
 
-You can copy your **APPLICATION_TOKEN** after you've created a [Pushover app](https://pushover.net/apps/build); give it a name and, if you want, a 72x72 image.
+You can copy your **APPLICATION_TOKEN** after you've created a [Pushover app](https://pushover.net/apps/build); give it a name and, if you want, a 72x72 [image](https://github.com/Kianda/subitoo/blob/main/extra/images/subitoo_icon_circle.png).
 
 Then save the keys inside ***Subitoo*** with **APPLICATION_TOKEN**:**USER_KEY** format like this:
 ```bash
