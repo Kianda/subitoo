@@ -1,6 +1,6 @@
 # Subitoo
 
-Price tracker and crawler for [Subito.it](https://www.subito.it)
+Command-line interface price tracker and crawler for [Subito.it](https://www.subito.it)
 
 
 
