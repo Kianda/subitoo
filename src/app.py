@@ -645,7 +645,7 @@ def main():
     initialization()
 
     # global argument parser
-    parser = argparse.ArgumentParser(prog='subitosubitoo', formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter))
+    parser = argparse.ArgumentParser(prog='subitoo', formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter))
     subparsers = parser.add_subparsers(help='commands available')
 
     # subparser for the 'add' command
@@ -674,7 +674,7 @@ def main():
     parser_delete.set_defaults(func=subitoo_delete)
     parser_delete_required = parser_delete.add_argument_group('required arguments')
     parser_delete_optional = parser_delete.add_argument_group('additional arguments')
-    parser_delete_required.add_argument('--name', '-n', '-id', dest='name', nargs="+", help='Names of search queries to delete, space separated', required=True)
+    parser_delete_required.add_argument('--name', '-n', dest='name', nargs="+", help='Names of search queries to delete, space separated', required=True)
 
     # subparser for the 'enable' command
     parser_enable = subparsers.add_parser('enable', help='Enable a saved search query', formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter))
@@ -715,7 +715,8 @@ def main():
     parser_configuration_optional = parser_configuration.add_argument_group('additional arguments')
     parser_configuration_optional.add_argument('--setPushoverKeys', dest='PushoverKeys', metavar='APP_TOKEN:USER_KEY', help='Save Pushover keys', default=False)
 
-    args = parser.parse_args()
+    # if there are no arguments then fallback to '--help'
+    parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     args.func(args)
 
 
