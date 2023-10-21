@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='subitoo',
-    version='0.1.0',
+    version='0.1.1',
     description='Price tracker and crawler for Subito.it',
     license='GPL v3',
     author='Kianda',
