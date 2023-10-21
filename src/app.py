@@ -716,7 +716,7 @@ def main():
     parser_configuration_optional.add_argument('--setPushoverKeys', dest='PushoverKeys', metavar='APP_TOKEN:USER_KEY', help='Save Pushover keys', default=False)
 
     # if there are no arguments then fallback to '--help'
-    parser.parse_args(args=None if sys.argv[1:] else ['--help'])
+    args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     args.func(args)
 
 
