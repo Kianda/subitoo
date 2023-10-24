@@ -25,7 +25,7 @@ Command-line interface price tracker and crawler for [Subito.it](https://www.sub
 **I will publish *Subitoo* on the snapcraft.io/store asap**
 
 ```bash
-sudo snap install subitoo --candidate
+sudo snap install subitoo
 ```
     
 ## Notifications
