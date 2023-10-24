@@ -142,7 +142,7 @@ docker run --name subitoo_scheduler -d --rm \
 --label ofelia.job-run.subitoo-job.schedule="@every 120m" \
 --label ofelia.job-run.subitoo-job.image="kianda/subitoo:latest" \
 --label ofelia.job-run.subitoo-job.volume="/host/data/folder:/root/.subitoo/" \
---label ofelia.job-run.subitoo-job.command="--help" \
+--label ofelia.job-run.subitoo-job.command="run" \
 mcuadros/ofelia:latest daemon --docker
 ```
 
