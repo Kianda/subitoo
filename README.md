@@ -7,7 +7,7 @@ Command-line interface price tracker and crawler for [Subito.it](https://www.sub
 
 ## Requirements
 - [Pushover](https://pushover.net) (*not free*)
-- [Snapcraft](https://snapcraft.io/docs/installing-snapd)
+- [Snapcraft](https://snapcraft.io/docs/installing-snapd) or [Docker](https://docs.docker.com/get-docker/)
 
 
 ## Features
@@ -66,14 +66,7 @@ Run ***Subitoo*** and it will notify you if new items appear on that search:
 ```bash
 subitoo run
 ```
-If you need ***Subitoo*** to run automatically use your operating system job scheduler, like [cron](https://en.wikipedia.org/wiki/Cron)
-```bash
-crontab -e
-```
-```bash
-# This will run subitoo every 2 hours
-0 */2 * * * subitoo run
-```
+
 ## Advanced Usage
 
 To learn more please use the built-in helper
@@ -102,6 +95,55 @@ More complex *subitoo add* example, this will search for:
 
 ```bash
 subitoo add --name "MyiPhone" --url "https://www.subito.it/annunci-italia/vendita/usato/?q=iPhone&qso=true&shp=true" --pages 2 --minPrice 200 --maxPrice 450 --skipNoPrice --skipSold
+```
+
+## Docker
+
+### Build
+You can build your own image:
+```bash
+docker build -f Dockerfile --no-cache -t kianda/subitoo:0.1.1 -t kianda/subitoo:latest .
+docker push kianda/subitoo:0.1.1; docker push kianda/subitoo:latest
+```
+Or use mine on [Dockerhub](https://github.com/Kianda/subitoo)
+
+### Run
+```bash
+docker run --rm \
+-v /host/data/folder:/root/.subitoo/ \
+kianda/subitoo:latest --help
+```
+
+If you need ***Subitoo*** to run automatically use your operating system job scheduler, like [cron](https://en.wikipedia.org/wiki/Cron)
+
+## Auto Run
+
+Once configured, you will probably need to run ***Subitoo*** automatically:
+
+Just use a job scheduler! (like [cron](https://en.wikipedia.org/wiki/Cron))
+```bash
+crontab -e
+```
+```bash
+# (if you installed Subitoo with Snap)
+# This will run subitoo every 2 hours
+0 */2 * * * subitoo run
+```
+```bash
+# (if you are using Docker)
+# This will run subitoo every 2 hours
+0 */2 * * * docker run --rm -v /host/data/folder:/root/.subitoo/ kianda/subitoo:latest run
+```
+```bash
+# (if you are using Docker and don't want to use the OS job scheduler)
+# This will run subitoo every 2 hours 
+docker run --name subitoo_scheduler -d --rm \
+-v /var/run/docker.sock:/var/run/docker.sock:ro \
+--label ofelia.job-run.subitoo-job.schedule="@every 120m" \
+--label ofelia.job-run.subitoo-job.image="kianda/subitoo:latest" \
+--label ofelia.job-run.subitoo-job.volume="/host/data/folder:/root/.subitoo/" \
+--label ofelia.job-run.subitoo-job.command="--help" \
+mcuadros/ofelia:latest daemon --docker
 ```
 
 ## FAQ
