@@ -105,7 +105,7 @@ You can build your own image:
 docker build -f Dockerfile --no-cache -t kianda/subitoo:0.1.1 -t kianda/subitoo:latest .
 docker push kianda/subitoo:0.1.1; docker push kianda/subitoo:latest
 ```
-Or use mine on [Dockerhub](https://github.com/Kianda/subitoo)
+Or use mine on [Dockerhub](https://hub.docker.com/r/kianda/subitoo)
 
 ### Run
 ```bash
