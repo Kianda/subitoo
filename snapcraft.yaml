@@ -1,5 +1,5 @@
 name: subitoo
-version: '0.1'
+version: '1.0'
 summary: python subitoo package
 description: "Price tracker and crawler for Subito.it"
 
