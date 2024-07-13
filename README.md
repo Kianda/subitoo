@@ -22,7 +22,7 @@ Command-line interface price tracker and crawler for [Subito.it](https://www.sub
 
 ## Installation
 
-**I will publish *Subitoo* on the snapcraft.io/store asap**
+**Snapcraft.io/store**
 
 ```bash
 sudo snap install subitoo
