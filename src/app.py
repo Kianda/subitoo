@@ -612,7 +612,7 @@ def extract_listing_data(lst, query_uid):
     # img_tag = lst.find('img')
     img_tag = lst.find('source')
     image_url = None
-    if img_tag.has_attr('srcset'):
+    if img_tag is not None and img_tag.has_attr('srcset'):
         # srcset attribute will have inside all the image URLS
         srcset_attr = img_tag.attrs['srcset']
         # extract all the links
