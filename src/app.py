@@ -435,7 +435,8 @@ def execute_run(query):
             logging.info("==========")
             logging.info("")
             logging.info("START: '{}' page {}".format(query['name'], current_page))
-            dom = requests.get(paged_url)
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            dom = requests.get(paged_url, headers=headers)
         except Exception as e:
             logging.error("{}".format(e))
             continue
@@ -608,7 +609,8 @@ def extract_listing_data(lst, query_uid):
     if len(city) > 0 and len(town) > 0: location = town + ' ' + city
 
     # images
-    img_tag = lst.find('img')
+    # img_tag = lst.find('img')
+    img_tag = lst.find('source')
     image_url = None
     if img_tag.has_attr('srcset'):
         # srcset attribute will have inside all the image URLS
