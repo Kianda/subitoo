@@ -90,7 +90,7 @@ class SearchQuery:
 
     @staticmethod
     def get_printable_fields():
-        return ['name', 'pages', 'regex_match', 'min_price', 'max_price', 'enabled']
+        return ['name', 'pages', 'min_price', 'max_price', 'enabled']
 
 
 """
@@ -216,7 +216,11 @@ def type_url(arg):
 def quit_if_already_running():
     """Prevent concurrent executions"""
     is_running = configs.search(Query().running == True)
-    if len(is_running) > 0 : sys.exit("Another instance is 'running', please wait it to finish before running again")
+    if len(is_running) >  0 :
+        message = "Another instance is 'running', please wait it to finish before running again. If stuck use 'subitoo maintenance --forceUnlock'"
+        ntf = NotificationPushover("Subitoo warning!", message, "", "")
+        send_pushover_notification(ntf)
+        sys.exit(message)
 
 
 def set_running(status):
@@ -236,14 +240,20 @@ def print_search_queries(args):
         return True
 
     # prepare data to print table
-    tabledata = []
+    tabledata_true = []
+    tabledata_false = []
     allowed_keys = SearchQuery.get_printable_fields()
     for q in queries.all():
         values = [dict(q)[k] for k in allowed_keys]
-        tabledata.append(dict(zip(allowed_keys, values)))
-
+        if q['enabled'] == True:
+            tabledata_true.append(dict(zip(allowed_keys, values)))
+        else:
+            tabledata_false.append(dict(zip(allowed_keys, values)))
     print()
-    print(tabulate(tabledata, headers="keys", tablefmt="rounded_grid", numalign="center", stralign="left"))
+    if len(tabledata_true) > 0:
+        print(tabulate(tabledata_true, headers="keys", tablefmt="rounded_grid", numalign="center", stralign="left"))
+    if len(tabledata_false) > 0:
+        print(tabulate(tabledata_false, headers="keys", tablefmt="rounded_grid", numalign="center", stralign="left"))
     print()
 
 
@@ -291,6 +301,15 @@ def delete_search_query(names):
             print("'{}' removed!".format(found[0]['name']))
         else:
             print("'{}' not found!".format(name.strip()))
+
+
+def get_query_name_by_uuid(quuid):
+    """Get the search query name from uuid"""
+    found = queries.search(Query().uid.matches(quuid.strip(), flags=re.IGNORECASE))
+    if len(found) > 0:
+        return found[0]['name']
+    else:
+        return ""
 
 
 """
@@ -345,7 +364,7 @@ def make_wide(formatter, w=600, h=200):
         return formatter
 
 
-# If needed apply some rate limits here
+# If needed, apply some rate limits here
 # ntf is class NotificationPushover
 def send_pushover_notification(ntf):
     """Send a Pushover notification"""
@@ -378,9 +397,10 @@ def send_pushover_notification(ntf):
 def generate_pushover_notification_from_listing(lst):
     """Take a class Listing and generate a class NotificationPushover from it"""
     title = lst.name
+    query_name = get_query_name_by_uuid(lst.queryuid)
 
     message = " "
-    if int(lst.price) > 0:
+    if lst.price is not None and int(lst.price) > 0:
         message = message + " <font color='#db00ba'>"+str(lst.price)+" &euro;</font> &#183;"
 
     if lst.shipping:
@@ -395,6 +415,9 @@ def generate_pushover_notification_from_listing(lst):
 
     if len(str(lst.location)) > 1:
         message = message + "<br /><i> "+str(lst.location)+"</i>"
+
+    if len(query_name) > 0:
+        message = message + "<br /><br /><font color='#009dd6'> -> query: </font>" + "'" + str(query_name) + "'"
 
     obj = NotificationPushover(title, message, lst.url, lst.imageurl)
     return obj
