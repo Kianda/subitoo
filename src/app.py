@@ -261,7 +261,7 @@ def search_query_change_status(names, status):
     """Enable or disable a 'search_query', disabled ones will not run"""
     for name in names:
         name = name.strip()
-        exists = queries.search(Query().name.matches(name, flags=re.IGNORECASE))
+        exists = queries.search(where('name') == name)
         if len(exists) > 0:
             queries.update({'enabled': status}, Query().uid == exists[0]['uid'])
             print("'{}' search query new status is: '{}'".format(name, str(status)))
@@ -272,7 +272,7 @@ def search_query_change_status(names, status):
 def reset_search_query(name):
     """Set a search query as 'new' and remove all the listings saved"""
     name = name.strip()
-    exists = queries.search(Query().name.matches(name, flags=re.IGNORECASE))
+    exists = queries.search(where('name') == name)
     if len(exists) > 0:
         queries.update({'first_run': True}, Query().uid == exists[0]['uid'])
         listings.remove(Query().queryuid == exists[0]['uid'])
@@ -283,29 +283,32 @@ def reset_search_query(name):
 
 def add_search_query(SearchQuery):
     """Add a search query to the database"""
-    exists = queries.search(Query().name.matches(SearchQuery.name, flags=re.IGNORECASE))
+    name = SearchQuery.name
+    exists = queries.search(where('name') == name)
     if len(exists) > 0:
-        print("'{}' already exists!".format(SearchQuery.name))
+        print("'{}' already exists!".format(name))
     else:
         queries.insert(SearchQuery.__dict__)
-        print("'{}' saved successfully!".format(SearchQuery.name))
+        print("'{}' saved successfully!".format(name))
 
 
 def delete_search_query(names):
     """Remove a search query from the database"""
     for name in names:
-        found = queries.search(Query().name.matches(name.strip(), flags=re.IGNORECASE))
+        name = name.strip()
+        found = queries.search(where('name') == name)
+
         if len(found) > 0:
             queries.remove(Query().name == found[0]['name'])
             listings.remove(Query().queryuid == found[0]['uid'])
             print("'{}' removed!".format(found[0]['name']))
         else:
-            print("'{}' not found!".format(name.strip()))
+            print("'{}' not found!".format(name))
 
 
 def get_query_name_by_uuid(quuid):
     """Get the search query name from uuid"""
-    found = queries.search(Query().uid.matches(quuid.strip(), flags=re.IGNORECASE))
+    found = queries.search(where('uid') == quuid.strip())
     if len(found) > 0:
         return found[0]['name']
     else:
