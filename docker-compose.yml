@@ -1,0 +1,12 @@
+services:
+
+  subitoo:
+    image: "kianda/subitoo:1"
+    container_name: "subitoo"
+    cap_drop:
+      - ALL # Drop all capabilities by default
+    security_opt:
+      - no-new-privileges:true  # Prevents privilege escalation inside the container
+    volumes:
+      - "./data:/root/.subitoo/data"
+    #entrypoint: ["sleep", "infinity"]

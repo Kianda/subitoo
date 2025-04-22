@@ -1,7 +1,6 @@
-requests
-beautifulsoup4
-deepdiff
-tabulate
-tinydb
-django-ratelimit2
-setuptools
+beautifulsoup4==4.13.4
+deepdiff==8.0.1
+requests==2.32.3
+setuptools==65.5.1
+tabulate==0.9.0
+tinydb==4.8.2

@@ -733,7 +733,7 @@ def main():
     parser_maintenance_optional.add_argument('--resetSearch', dest='resetSearch', metavar='SEARCH_QUERY_NAME', default=False, help='Reset a search query to a \'first run\' status')
     parser_maintenance_optional.add_argument('--forceUnlock', dest='forceUnlock', default=False, action="store_true", help='Force running status to \'false\'')
     parser_maintenance_optional.add_argument('--justSleep', '--sleep', metavar='SECONDS', dest='justSleep', default=False, type=int, help='This is just a test command, sleep for X seconds')
-    parser_maintenance_optional.add_argument('--dataPath', dest='dataPath', default=False, action="store_true", help='Print the database system path')
+    #parser_maintenance_optional.add_argument('--dataPath', dest='dataPath', default=False, action="store_true", help='Print the database system path')
     parser_maintenance_optional.add_argument('--pythonVersion', dest='pythonVersion', default=False, action="store_true", help='Print the python version')
 
     # subparser for the 'configuration' command

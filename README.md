@@ -7,7 +7,7 @@ Command-line interface price tracker and crawler for [Subito.it](https://www.sub
 
 ## Requirements
 - [Pushover](https://pushover.net) (*not free*)
-- [Snapcraft](https://snapcraft.io/docs/installing-snapd) or [Docker](https://docs.docker.com/get-docker/)
+- [Docker](https://docs.docker.com/get-docker/)
 
 
 ## Features
@@ -17,15 +17,28 @@ Command-line interface price tracker and crawler for [Subito.it](https://www.sub
 - Detect changes on old listings
 - Sold items can be excluded
 - Price range filtering
-- Filter items applying regex matching on titles (BETA)
+- Filter items applying regex matching on titles
 
 
 ## Installation
 
-**Snapcraft.io/store**
-
 ```bash
-sudo snap install subitoo
+# Clone this repo somewhere
+git clone https://github.com/Kianda/subitoo.git subitoo && cd subitoo && pwd
+```
+```bash
+chmod +x subitoo.sh
+# Then use the file ./subitoo.sh to execute Subitoo (or set any alias you want)
+```
+```bash
+# Optional: set a 'subitoo' alias
+echo "alias subitoo='/your/absolute/path/to/subitoo/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
+```
+
+## Update
+```bash
+# cd /absolute/path/to/subitoo/
+docker compose pull
 ```
     
 ## Notifications
@@ -62,9 +75,23 @@ You can check all your saved URLs with:
 ```bash
 subitoo ls
 ```
-Run ***Subitoo*** and it will notify you if new items appear on that search:
+Run ***Subitoo,*** it will notify you if new items appear on that search:
 ```bash
+# This is a one-time run.
+# You need to execute this everytime (check the 'Cron' section)
 subitoo run
+```
+
+## Cron
+
+To run ***Subitoo*** automatically use your operating system job scheduler, like [cron](https://en.wikipedia.org/wiki/Cron)
+
+```bash
+crontab -e
+```
+```
+# This will run Subitoo every 2 hours
+0 */2 * * * cd /your/absolute/path/to/subitoo/ && ./subitoo.sh run
 ```
 
 ## Advanced Usage
@@ -92,71 +119,36 @@ More complex *subitoo add* example, this will search for:
 - Will ignore already sold items
 - Will ignore if the price is missing
 - Scan only the first 2 pages of the results
+- Apply [regex](https://regex101.com/r/sjzhHv/3) (?i)^(?=.*plus)(?!.*iphone 12) on listing title
 
 ```bash
-subitoo add --name "MyiPhone" --url "https://www.subito.it/annunci-italia/vendita/usato/?q=iPhone&qso=true&shp=true" --pages 2 --minPrice 200 --maxPrice 450 --skipNoPrice --skipSold
+subitoo add --name MyiPhone --url "https://www.subito.it/annunci-italia/vendita/usato/?q=iPhone&qso=true&shp=true" --pages 2 --minPrice 200 --maxPrice 450 --skipNoPrice --skipSold --regex '(?i)^(?=.*plus)(?!.*iphone 12)' --skipSold --skipNoPrice```
 ```
 
-## Docker
-
-### Build
-You can build your own image:
+## Build
+If you want, you can build your own image:
 ```bash
-docker build -f Dockerfile --no-cache -t kianda/subitoo:0.1.1 -t kianda/subitoo:latest .
-docker push kianda/subitoo:0.1.1; docker push kianda/subitoo:latest
-```
-Or use mine on [Dockerhub](https://hub.docker.com/r/kianda/subitoo)
-
-### Run
-```bash
-docker run --rm \
--v /host/data/folder:/root/.subitoo/ \
-kianda/subitoo:latest --help
-```
-
-If you need ***Subitoo*** to run automatically use your operating system job scheduler, like [cron](https://en.wikipedia.org/wiki/Cron)
-
-## Auto Run
-
-Once configured, you will probably need to run ***Subitoo*** automatically:
-
-Just use a job scheduler! (like [cron](https://en.wikipedia.org/wiki/Cron))
-```bash
-crontab -e
-```
-```bash
-# (if you installed Subitoo with Snap)
-# This will run subitoo every 2 hours
-0 */2 * * * subitoo run
-```
-```bash
-# (if you are using Docker)
-# This will run subitoo every 2 hours
-0 */2 * * * docker run --rm -v /host/data/folder:/root/.subitoo/ kianda/subitoo:latest run
-```
-```bash
-# (if you are using Docker and don't want to use the OS job scheduler)
-# This will run subitoo every 2 hours 
-docker run --name subitoo_scheduler -d --rm \
--v /var/run/docker.sock:/var/run/docker.sock:ro \
---label ofelia.job-run.subitoo-job.schedule="@every 120m" \
---label ofelia.job-run.subitoo-job.image="kianda/subitoo:latest" \
---label ofelia.job-run.subitoo-job.volume="/host/data/folder:/root/.subitoo/" \
---label ofelia.job-run.subitoo-job.command="run" \
-mcuadros/ofelia:latest daemon --docker
+# cd /your/absolute/path/to/subitoo/
+export TAG_VERSION='1.1' && \
+export TAG_MAJOR='1' && \
+export HUB_PATH='kianda/subitoo' && \
+docker build -f Dockerfile --no-cache -t $HUB_PATH:$TAG_VERSION -t $HUB_PATH:$TAG_MAJOR -t $HUB_PATH:latest . && \
+docker push $HUB_PATH:$TAG_VERSION && \
+docker push $HUB_PATH:$TAG_MAJOR && \
+docker push $HUB_PATH:latest
 ```
 
 ## FAQ
 
-### Why I did not receive any notifications on first run?
+### Why didn’t I receive any notifications on the first run?
 
 The first run of a search query will not send notifications, it will only populate the database.
 
 You will receive notifications on consecutive runs if there is a new item or any old one is changed.
 
-### It's safe to set *--pages 0* as search parameter?
+### It's safe to set *--pages 0* as a search parameter?
 
-Only if your URL is safe, by safe I mean that it will give out not-too-many results.
+Only if your URL is safe, by safe I mean that it doesn't return too many results.
 
 Check this URL for example:
 ```
@@ -171,16 +163,13 @@ Check all the parameters for the *add* command here:
 subitoo add --help
 ```
 
-### What happens if my cron will *subitoo run* multiple times in too short time?
-Nothing, there is a built-in lock, if you execute *subitoo run* and the previous execution is still running it will do nothing.
+### What happens if my cron job runs *subitoo run* multiple times in a short period?
+Nothing, there is a built-in lock, if you execute *subitoo run* and the previous execution is still running it will be ignored.
 
-### Where ***Subitoo*** save data?
-Run this:
-```bash
-subitoo maintenance --dataPath
-```
+### Where does ***Subitoo*** save data?
+Inside the '*data*' folder you will find the database and the logs. Feel free to back it up to prevent data loss.
 
-### How the *'old listings detect changes'* work?
-If an item is already in the database and get scanned again then it will be matched vs the old one.
+### How does the '*old listings detect changes*' feature work?
+If an item is already in the database and gets scanned again, it will be compared against the existing version.
 
 > **NOTICE:** If your search is reading only page 1 (of the results) then all the items that end up into pages > 1 will never be read again until they go back into page 1.
