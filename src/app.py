@@ -166,9 +166,9 @@ def subitoo_maintenance(args):
         set_running(False)
         print('Done!')
 
-    if args.dataPath is not False:
-        global basedirectory
-        print("Data is stored here: "+basedirectory)
+    #if args.dataPath is not False:
+    #    global basedirectory
+    #    print("Data is stored here: "+basedirectory)
 
     if args.pythonVersion is not False:
         print("Python version: "+sys.version)
