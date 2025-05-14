@@ -9,4 +9,5 @@ services:
       - no-new-privileges:true  # Prevents privilege escalation inside the container
     volumes:
       - "./data:/root/.subitoo/data"
+      #- "./src:/app"
     #entrypoint: ["sleep", "infinity"]

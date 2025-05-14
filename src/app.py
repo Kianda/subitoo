@@ -8,6 +8,7 @@ import sys
 import time
 import uuid
 import warnings
+import datetime
 from pprint import pprint
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup, Tag
@@ -39,8 +40,10 @@ notifications = []
 sent_notifications_uids = []
 
 # some flood prevention
-seconds_between_queries = int(4)
-seconds_between_pages = int(2)
+seconds_between_queries = int(5)
+seconds_between_pages = int(3)
+
+#import ipdb;ipdb.set_trace()
 
 # configure some logging
 logging.basicConfig(filename=basedirectory+'data/execution.log', level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -126,6 +129,7 @@ def subitoo_run(args):
     """Main command call from argparse"""
     quit_if_already_running()
     set_running(True)
+    check_promotions()
     try:
         for idx, q in enumerate(queries.search(Query().enabled == True)):
             execute_run(q)
@@ -135,6 +139,40 @@ def subitoo_run(args):
         logging.fatal(msg)
         print(msg)
     set_running(False)
+
+
+def check_promotions():
+    """Check (not too hard) if any promotion is active on the Subito.it homepage"""
+
+    # No point to check promotions when notifications are not configured
+    if not is_pushover_enabled():
+        return True
+
+    current_yearweek = get_current_yearweek()
+    promotion_config = configs.get(where('promotions').exists())
+    if promotion_config and promotion_config.get('promotions') == current_yearweek:
+        # This week we already sent a notification
+        return True
+
+    # Proceed with the checking
+    response = requests.get("https://www.subito.it/")
+    html = response.text
+    targets_to_search = [
+        "0,99 €",
+        "0,99€",
+        "spedizioni InPost scontate"
+    ]
+    # Check if any of the strings is found
+    if any(text.lower() in html.lower() for text in targets_to_search):
+        # Do not execute again for a week
+        tinydb_upsert_field_value(configs, 'promotions', current_yearweek)
+        # Send a notification
+        message = "A promotion appears to be available on the homepage! Be sure to check it out!"
+        ntf = NotificationPushover("Subito.it promotion!", message, "", "")
+        send_pushover_notification(ntf)
+
+    time.sleep(1)
+    return True
 
 
 def subitoo_add(args):
@@ -229,7 +267,7 @@ def set_running(status):
 
 
 def print_search_queries(args):
-    """Console print a table with all the 'seach_queries' saved into the database"""
+    """Console print a table with all the 'search_queries' saved into the database"""
     if len(queries.all()) == 0:
         print("Zero search query saved")
         return True
@@ -328,6 +366,18 @@ def tinydb_get_field_value(table, field_name):
     if value:
         return value.get(field_name)
     return None
+
+
+def get_current_yearweek():
+    """Return the current week of the year plus the year ex: 202538"""
+    # Get the current date
+    current_date = datetime.date.today()
+    # Get the current week number and year
+    week_number = current_date.strftime("%U")  # Week number of the year
+    year = current_date.year
+    # Combine the year and week number into the desired format
+    week_year = f"{year}{week_number.zfill(2)}"
+    return week_year
 
 
 def tinydb_upsert_field_value(table, field, value):
@@ -524,7 +574,7 @@ def send_notifications():
     if len(notifications) == 0:
         return True
 
-    if not is_pushover_enabled:
+    if not is_pushover_enabled():
         logging.warning("Missing Pushover keys!")
         return True
 
