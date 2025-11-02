@@ -4,3 +4,4 @@ requests==2.32.3
 setuptools==65.5.1
 tabulate==0.9.0
 tinydb==4.8.2
+ipdb

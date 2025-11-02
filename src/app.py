@@ -522,7 +522,7 @@ def execute_run(query):
             break
 
         bsoup = BeautifulSoup(dom.text, 'html.parser')
-        found_listings = bsoup.find_all('div', class_='item-card')
+        found_listings = bsoup.select('article[class^="index-module_card"]')
 
         if len(found_listings) == 0:
             logging.info("")
@@ -544,7 +544,7 @@ def execute_run(query):
             if changed:
                 QueryBuilder = Query()
                 listings.upsert(Listing.__dict__, ((QueryBuilder.uid == Listing.uid) & (QueryBuilder.queryuid == query['uid'])))
-                if not query['first_run']: logging.info("--> Changes detected")
+                if not query['first_run']: logging.info("--> Changes detected (or new)")
             else:
                 logging.info("--> No changes detected")
 
@@ -605,7 +605,7 @@ def is_something_changed(Listing, queryuid):
 
 
 def is_skippable(query, Listing):
-    """Return true if a Listing does no meet the defined requirements"""
+    """Return true if a Listing does not meet the defined requirements"""
     if Listing.sold and query['skip_sold']: return 'Item is sold'
     if Listing.price is None and query['skip_no_price']: return 'The price is missing'
     if Listing.price is not None:
@@ -621,11 +621,9 @@ def is_skippable(query, Listing):
 def extract_listing_data(lst, query_uid):
     """Build a Listing object from the Beautifulsoup raw data"""
     # find the link
-    # first_a_tag = lst.find('a', class_='link', href=True)
-    first_a_tag = lst.find('a', class_=re.compile('.*link.*'), href=True)
-    link = None
+    first_a_tag = lst.find('a', class_=re.compile(r'index-module_link'))
     if first_a_tag is not None:
-        link = first_a_tag.attrs['href']
+        link = first_a_tag.get('href')
         if not link.startswith('https://www.subito.it/') and not link.startswith('https://subito.it/'):
             link = None
 
@@ -635,18 +633,12 @@ def extract_listing_data(lst, query_uid):
 
     # get the name
     name = 'Unknown'
-    if lst.find('h2'):
-        name = lst.find('h2').string.strip()
+    if lst.find('h3'):
+        name = lst.find('h3', class_=re.compile(r'index-module_subject')).get_text(strip=True)
 
     # search for 'vetrina' badge
-    div_module_with_badge = lst.find('div', class_=re.compile('PostingTimeAndPlace-module_with-badge.*'))
-    item_vetrina_badge = False
-    if div_module_with_badge:
-        span_tagg = div_module_with_badge.find('span')
-        if span_tagg:
-            span_text = str(span_tagg.text)
-            if len(span_text) > 0 and span_text.lower().strip() == 'vetrina':
-                item_vetrina_badge = True
+    span_with_badge = lst.find('span', class_=re.compile(r'index-module_badge'))
+    item_vetrina_badge = span_with_badge and 'vetrina' in span_with_badge.get_text(strip=True).lower()
 
     if item_vetrina_badge:
         # Skip vetrina items because sometimes they are offtopic items
@@ -655,46 +647,38 @@ def extract_listing_data(lst, query_uid):
         logging.info("--> Skipped because it is a 'vetrina' item")
         return False
 
-    # check if the item-sold-badge exists
-    sold = bool(False)
-    item_sold_badge = lst.find('span', class_=re.compile(r'item-sold-badge'))
-    if type(item_sold_badge) == Tag: sold = bool(True)
+    # check if there is a span tag with soldBadge class
+    sold = lst.find('span', class_=re.compile(r'index-module_soldBadge')) is not None
 
-    # check if the shipping-badge exists
-    shipping = bool(False)
-    item_shipping_badge = lst.find('span', class_=re.compile(r'shipping-badge'))
-    if type(item_shipping_badge) == Tag: shipping = bool(True)
+    # check if there is a svg icon with shippingIcon class
+    shipping = lst.find('svg', class_=re.compile(r'index-module_shippingIcon')) is not None
 
     # price
-    price = None
-    found_price = lst.find(string=re.compile(r'.*€.*'))
-    if found_price is not None:
-        price = int(re.sub("[^0-9]", "", found_price))
+    price_element = lst.find('p', class_=re.compile(r'index-module_price'))
+    price = price_element.get_text(strip=True) if price_element else None
+    if price:
+        match = re.search(r'\d+', price)
+        price = int(match.group()) if match else None
 
     # location
-    location = ''
-    city = town = ''
-    found_city = lst.find('span', class_='city')
-    if found_city is not None: city = found_city.string.strip()
-
-    if len(city) > 0:
-        found_town = found_city.previous_sibling
-        if found_town is not None:
-            town = found_town.string.strip()
-
-    if len(city) > 0 and len(town) > 0: location = town + ' ' + city
+    location_element = lst.find('span', class_=re.compile(r'index-module_location'))
+    location = location_element.get_text(strip=True) if location_element else None
 
     # images
-    # img_tag = lst.find('img')
-    img_tag = lst.find('source')
+    # Get image - prefer highest resolution from srcset
+    img_element = lst.find('img', class_=re.compile(r'index-module_image'))
     image_url = None
-    if img_tag is not None and img_tag.has_attr('srcset'):
-        # srcset attribute will have inside all the image URLS
-        srcset_attr = img_tag.attrs['srcset']
-        # extract all the links
-        image_urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', srcset_attr)
-        # the last image is the best quality one
-        image_url = image_urls[-1]
+
+    if img_element:
+        srcset = img_element.get('srcset')
+        if srcset:
+            # Split by comma and get the last one (highest resolution)
+            srcset_parts = srcset.split(',')
+            # Get the URL from the last part (before the resolution descriptor like "3x")
+            image_url = srcset_parts[-1].strip().split()[0]
+        else:
+            # Fallback to src if srcset doesn't exist
+            image_url = img_element.get('src')
 
     # custom uuid
     splitted = link.rsplit('/', 1)[-1]
