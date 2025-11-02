@@ -24,7 +24,7 @@ Command-line interface crawler for [Subito.it](https://www.subito.it)
 
 ```bash
 # Clone this repo somewhere
-git clone https://github.com/Kianda/subitoo.git subitoo && cd subitoo && pwd
+git clone https://github.com/Kianda/subitoo.git subitoo && cd subitoo
 ```
 ```bash
 chmod +x subitoo.sh
@@ -32,12 +32,13 @@ chmod +x subitoo.sh
 ```
 ```bash
 # Optional: set a 'subitoo' alias
-echo "alias subitoo='/your/absolute/path/to/subitoo/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
+sed -i '/alias subitoo=/d' ~/.bash_aliases && echo "alias subitoo='$(pwd)/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
 ```
 
 ## Update
 ```bash
-# cd /absolute/path/to/subitoo/
+# cd /absolute/path/to/subitoo/ and do it manually
+# (or set a cron for it -> check 'Cron' section)
 docker compose pull
 ```
     
@@ -92,6 +93,8 @@ crontab -e
 ```
 # This will run Subitoo every 2 hours
 0 */2 * * * cd /your/absolute/path/to/subitoo/ && ./subitoo.sh run
+# And update once a day
+0 0 * * * cd /your/absolute/path/to/subitoo/ && docker compose pull
 ```
 
 ## Advanced Usage
