@@ -1,7 +1,7 @@
 services:
 
   subitoo:
-    image: "kianda/subitoo:1"
+    image: "kianda/subitoo:latest"
     container_name: "subitoo"
     cap_drop:
       - ALL # Drop all capabilities by default

@@ -511,7 +511,13 @@ def execute_run(query):
             logging.info("==========")
             logging.info("")
             logging.info("START: '{}' page {}".format(query['name'], current_page))
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+                'Referer': 'https://www.subito.it/',
+                'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Linux"'
+            }
             dom = requests.get(paged_url, headers=headers)
         except Exception as e:
             logging.error("{}".format(e))
