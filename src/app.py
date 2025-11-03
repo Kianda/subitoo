@@ -663,8 +663,9 @@ def extract_listing_data(lst, query_uid):
     price_element = lst.find('p', class_=re.compile(r'index-module_price'))
     price = price_element.get_text(strip=True) if price_element else None
     if price:
-        match = re.search(r'\d+', price)
-        price = int(match.group()) if match else None
+        # Remove everything except digits
+        price_digits = re.sub(r'[^\d]', '', price)
+        price = int(price_digits) if price_digits else None
 
     # location
     location_element = lst.find('span', class_=re.compile(r'index-module_location'))
