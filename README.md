@@ -32,7 +32,7 @@ chmod +x subitoo.sh
 ```
 ```bash
 # Optional: set a 'subitoo' alias
-sed -i '/alias subitoo=/d' ~/.bash_aliases && echo "alias subitoo='$(pwd)/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
+sed -i '/alias subitoo=/d' ~/.bash_aliases; echo "alias subitoo='$(pwd)/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
 ```
 
 ## Update
