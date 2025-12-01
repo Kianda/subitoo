@@ -1,7 +1,8 @@
 services:
 
   subitoo:
-    image: "kianda/subitoo:latest"
+    # Default to image tag "1" if .env is not set
+    image: "kianda/subitoo:${IMAGE_TAG:-1}"
     container_name: "subitoo"
     cap_drop:
       - ALL # Drop all capabilities by default

@@ -35,6 +35,11 @@ chmod +x subitoo.sh
 sed -i '/alias subitoo=/d' ~/.bash_aliases; echo "alias subitoo='$(pwd)/subitoo.sh'" >> ~/.bash_aliases && source ~/.bashrc
 ```
 
+```bash
+# Optional: create .env file to set a custom image tag (or will fallback to TAG "1")
+cp .env.example .env
+```
+
 ## Update
 ```bash
 # cd /absolute/path/to/subitoo/ and do it manually

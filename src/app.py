@@ -9,6 +9,7 @@ import time
 import uuid
 import warnings
 import datetime
+import json
 from pprint import pprint
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup, Tag
@@ -43,7 +44,25 @@ sent_notifications_uids = []
 seconds_between_queries = int(5)
 seconds_between_pages = int(3)
 
-#import ipdb;ipdb.set_trace()
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "DNT": "1",
+    "Sec-GPC": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-site",
+    "Sec-Fetch-User": "?1",
+    "Priority": "u=0, i",
+    "TE": "trailers"
+}
+
+#import ipdb
+#ipdb.set_trace()
 
 # configure some logging
 logging.basicConfig(filename=basedirectory+'data/execution.log', level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -129,38 +148,62 @@ def subitoo_run(args):
     """Main command call from argparse"""
     quit_if_already_running()
     set_running(True)
-    check_promotions()
-    try:
-        for idx, q in enumerate(queries.search(Query().enabled == True)):
-            execute_run(q)
-            if idx > 0: time.sleep(seconds_between_queries)
-    except Exception as e:
-        msg = "{}".format(e)
-        logging.fatal(msg)
-        print(msg)
+    # Check the homepage before start
+    allgood = check_homepage()
+    time.sleep(1)
+
+    if allgood:
+        try:
+            for idx, q in enumerate(queries.search(Query().enabled == True)):
+                execute_run(q)
+                if idx > 0: time.sleep(seconds_between_queries)
+        except Exception as e:
+            msg = "{}".format(e)
+            logging.fatal(msg)
+            print(msg)
+
     set_running(False)
 
 
-def check_promotions():
-    """Check (not too hard) if any promotion is active on the Subito.it homepage"""
+def check_homepage():
+    """Check (not too hard) if any promotion is active on the Subito.it homepage or if the website access is forbidden"""
 
     # No point to check promotions when notifications are not configured
     if not is_pushover_enabled():
         return True
 
+    # get homepage
+    response = requests.get("https://www.subito.it/", headers=headers)
+    html = response.text
+
+    # find access denied text
+    targets_to_search = [
+        "access denied",
+    ]
+
+    if any(text.lower() in html.lower() for text in targets_to_search):
+        errors = get_current_errors_number() + 1
+        tinydb_upsert_field_value(configs, 'errors', errors)
+        # 3 consecutive?
+        if errors == 3:
+            ntf = NotificationPushover("Subito.it error!", "Access denied from Subito.it", "", "")
+            send_pushover_notification(ntf)
+        return False
+    else:
+        tinydb_upsert_field_value(configs, 'errors', 0)
+
+    # promotion already sent this week?
     current_yearweek = get_current_yearweek()
     promotion_config = configs.get(where('promotions').exists())
     if promotion_config and promotion_config.get('promotions') == current_yearweek:
         # This week we already sent a notification
         return True
 
-    # Proceed with the checking
-    response = requests.get("https://www.subito.it/")
-    html = response.text
+    # proceed with the check
     targets_to_search = [
         "0,99 €",
         "0,99€",
-        "spedizioni InPost scontate"
+        "spedizioni inpost scontate"
     ]
     # Check if any of the strings is found
     if any(text.lower() in html.lower() for text in targets_to_search):
@@ -171,7 +214,6 @@ def check_promotions():
         ntf = NotificationPushover("Subito.it promotion!", message, "", "")
         send_pushover_notification(ntf)
 
-    time.sleep(1)
     return True
 
 
@@ -386,6 +428,12 @@ def tinydb_upsert_field_value(table, field, value):
     return True
 
 
+def get_current_errors_number():
+    config_doc = configs.get(Query().errors.exists())
+    errors = config_doc.get('errors', 0) if config_doc else 0
+    return errors
+
+
 def is_pushover_enabled():
     global pushover_app_token
     global pushover_user_key
@@ -511,13 +559,6 @@ def execute_run(query):
             logging.info("==========")
             logging.info("")
             logging.info("START: '{}' page {}".format(query['name'], current_page))
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-                'Referer': 'https://www.subito.it/',
-                'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Linux"'
-            }
             dom = requests.get(paged_url, headers=headers)
         except Exception as e:
             logging.error("{}".format(e))
@@ -528,16 +569,37 @@ def execute_run(query):
             break
 
         bsoup = BeautifulSoup(dom.text, 'html.parser')
-        found_listings = bsoup.select('article[class^="index-module_card"]')
 
-        if len(found_listings) == 0:
-            logging.info("")
-            logging.warning("Found zero listings! End of pages?")
+        # Find the script tag with id="__NEXT_DATA__"
+        json_data_script_tag = bsoup.find('script', {'id': '__NEXT_DATA__'})
+        if not json_data_script_tag:
+            logging.warning("__NEXT_DATA__ script not found")
             break
+
+        # Parse the JSON content
+        next_data = json.loads(json_data_script_tag.string)
+
+        # Print the data to debug
+        # with open('next_data.json', 'w', encoding='utf-8') as f:
+        #    json.dump(next_data, f, indent=2, ensure_ascii=False)
+
+        # Extract listings
+        found_listings = next_data.get('props', {}).get('pageProps', {}).get('initialState', {}).get('items', {}).get('list', [])
+
+        if not found_listings:
+            logging.warning("Zero listings found! End of pages?")
+            break
+
+        logging.info(f"Found {len(found_listings)} listings!")
 
         for lst in found_listings:
             Listing = extract_listing_data(lst, query['uid'])
-            if Listing is False: continue
+
+            if Listing is False:
+                logging.warning("This listing returned False:")
+                logging.warning(print(json.dumps(lst, indent=0)))
+                continue
+
             logging.info("")
             logging.info("'{}'".format(Listing.name))
             changed = is_something_changed(Listing, query['uid'])
@@ -626,66 +688,47 @@ def is_skippable(query, Listing):
 
 def extract_listing_data(lst, query_uid):
     """Build a Listing object from the Beautifulsoup raw data"""
-    # find the link
-    first_a_tag = lst.find('a', class_=re.compile(r'index-module_link'))
-    if first_a_tag is not None:
-        link = first_a_tag.get('href')
-        if not link.startswith('https://www.subito.it/') and not link.startswith('https://subito.it/'):
-            link = None
 
-    # not a valid link! skip!
+    #print(json.dumps(lst, indent=2))
+
+    # Get the item from the JSON
+    item = lst.get('item', [])
+    if not item:
+        return False
+
+    # Extract the url of the item, if not valid exit here
+    link = item.get('urls', {}).get('default', '')
+    if not link.startswith('https://www.subito.it/') and not link.startswith('https://subito.it/'):
+        link = None
     if link is None:
         return False
 
-    # get the name
-    name = 'Unknown'
-    if lst.find('h3'):
-        name = lst.find('h3', class_=re.compile(r'index-module_subject')).get_text(strip=True)
+    # Extract the name of the item
+    name = item.get('subject', 'Unknown')
 
-    # search for 'vetrina' badge
-    span_with_badge = lst.find('span', class_=re.compile(r'index-module_badge'))
-    item_vetrina_badge = span_with_badge and 'vetrina' in span_with_badge.get_text(strip=True).lower()
+    # Extract the price
+    price_values = item.get('features', {}).get('/price', {}).get('values', [])
+    price = int(price_values[0].get('key')) if price_values else None
 
-    if item_vetrina_badge:
-        # Skip vetrina items because sometimes they are offtopic items
-        logging.info("")
-        logging.info("'{}'".format(name))
-        logging.info("--> Skipped because it is a 'vetrina' item")
-        return False
+    # Extract images
+    item_images = item.get('images', [])
+    image_url = (item_images[0].get('cdnBaseUrl') + "?rule=card-desktop-new-small-3x-auto") if item_images else None
 
-    # check if there is a span tag with soldBadge class
-    sold = lst.find('span', class_=re.compile(r'index-module_soldBadge')) is not None
+    # Is shipping available?
+    shipping_values = item.get('features', {}).get('/item_shipping_allowed', {}).get('values', [])
+    shipping = bool(shipping_values[0].get('key')) if shipping_values else False
 
-    # check if there is a svg icon with shippingIcon class
-    shipping = lst.find('svg', class_=re.compile(r'index-module_shippingIcon')) is not None
+    # Extract location
+    geo = item.get('geo', {})
+    town_value = geo.get('town', {}).get('value')
+    city_short = geo.get('city', {}).get('shortName')
+    if town_value and city_short:
+        location = f"{town_value} ({city_short})"
+    else:
+        location = town_value or city_short or "Unknown"
 
-    # price
-    price_element = lst.find('p', class_=re.compile(r'index-module_price'))
-    price = price_element.get_text(strip=True) if price_element else None
-    if price:
-        # Remove everything except digits
-        price_digits = re.sub(r'[^\d]', '', price)
-        price = int(price_digits) if price_digits else None
-
-    # location
-    location_element = lst.find('span', class_=re.compile(r'index-module_location'))
-    location = location_element.get_text(strip=True) if location_element else None
-
-    # images
-    # Get image - prefer highest resolution from srcset
-    img_element = lst.find('img', class_=re.compile(r'index-module_image'))
-    image_url = None
-
-    if img_element:
-        srcset = img_element.get('srcset')
-        if srcset:
-            # Split by comma and get the last one (highest resolution)
-            srcset_parts = srcset.split(',')
-            # Get the URL from the last part (before the resolution descriptor like "3x")
-            image_url = srcset_parts[-1].strip().split()[0]
-        else:
-            # Fallback to src if srcset doesn't exist
-            image_url = img_element.get('src')
+    # Sold items are no longer appearing?
+    sold = False
 
     # custom uuid
     splitted = link.rsplit('/', 1)[-1]
