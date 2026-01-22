@@ -146,6 +146,13 @@ docker push $HUB_PATH:$TAG_MAJOR && \
 docker push $HUB_PATH:latest
 ```
 
+
+## TODO
+Refactor *Subitoo* into a maintainable, object-oriented, and modular framework.
+- Apply object-oriented design principles to the core architecture
+- Decouple site-specific scraping logic from the core engine
+- Allow additional website scrapers to be added as independent modules
+
 ## FAQ
 
 ### Why didn’t I receive any notifications on the first run?
