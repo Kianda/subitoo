@@ -11,7 +11,7 @@ import warnings
 import datetime
 import json
 from pprint import pprint
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from bs4 import BeautifulSoup, Tag
 from deepdiff import DeepDiff
 from tabulate import tabulate
@@ -59,6 +59,15 @@ headers = {
     "Sec-Fetch-User": "?1",
     "Priority": "u=0, i",
     "TE": "trailers"
+}
+
+hades_headers = {
+    "Accept": "*/*",
+    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Origin": "https://www.subito.it",
+    "Referer": "https://www.subito.it/",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "X-Subito-Channel": "web"
 }
 
 #import ipdb
@@ -547,19 +556,22 @@ signal.signal(signal.SIGINT, signal_handler)
 def execute_run(query):
     """Where the web parsing/scraping of Subito.it happens"""
     total_pages = query['pages']
+    hades_limit = 30
     global notifications
     if total_pages == 0: total_pages = 300
 
     for page_counter in range(total_pages):
+        hades_start = page_counter * hades_limit
         current_page = page_counter + 1
-        paged_url = query['url'] + '&o=' + str(current_page)
+        hades_url = build_hades_url_from_subito_url(query['url'],hades_limit,hades_start)
+
         if current_page > 1: time.sleep(seconds_between_pages)
         try:
             logging.info("")
             logging.info("==========")
             logging.info("")
             logging.info("START: '{}' page {}".format(query['name'], current_page))
-            dom = requests.get(paged_url, headers=headers)
+            dom = requests.get(hades_url, headers=hades_headers)
         except Exception as e:
             logging.error("{}".format(e))
             continue
@@ -568,23 +580,14 @@ def execute_run(query):
             logging.warning("Got a 404! End of pages?")
             break
 
-        bsoup = BeautifulSoup(dom.text, 'html.parser')
-
-        # Find the script tag with id="__NEXT_DATA__"
-        json_data_script_tag = bsoup.find('script', {'id': '__NEXT_DATA__'})
-        if not json_data_script_tag:
-            logging.warning("__NEXT_DATA__ script not found")
-            break
-
-        # Parse the JSON content
-        next_data = json.loads(json_data_script_tag.string)
+        response_data = json.loads(dom.text)
 
         # Print the data to debug
-        # with open('next_data.json', 'w', encoding='utf-8') as f:
-        #    json.dump(next_data, f, indent=2, ensure_ascii=False)
+        #with open('response_data.json', 'w', encoding='utf-8') as f:
+        #    json.dump(response_data, f, indent=2, ensure_ascii=False)
 
         # Extract listings
-        found_listings = next_data.get('props', {}).get('pageProps', {}).get('initialState', {}).get('items', {}).get('list', [])
+        found_listings = response_data['ads']
 
         if not found_listings:
             logging.warning("Zero listings found! End of pages?")
@@ -632,6 +635,39 @@ def execute_run(query):
 
     logging.info("")
     logging.info("END: '{}'".format(query['name']))
+
+
+def build_hades_url_from_subito_url(subito_url, limit=30, start=0):
+    """Start from a Subito url and build Hades url"""
+
+    # Extract parameters from the Subito query
+    subito_parsed_url = urlparse(subito_url)
+    subito_query_params = parse_qs(subito_parsed_url.query)
+
+    # Use the parameters to build a Hades query url
+    parsed_hades = urlparse("https://hades.subito.it/v1/search/items")
+    hades_params = parse_qs(parsed_hades.query)
+
+    # Query string
+    hades_params['q'] = subito_query_params.get('q')
+    # Type sell
+    hades_params['t'] = ['s']
+    # Search only title?
+    hades_params['qso'] = subito_query_params.get('qso', 'false')
+    # Only with shipping available?
+    hades_params['shp'] = subito_query_params.get('shp', 'false')
+    # ?
+    hades_params['urg'] = ['false']
+    # Sorting
+    hades_params['sort'] = subito_query_params.get('order', 'datedesc')
+    # Limit & pagination
+    hades_params['lim'] = [str(limit)]
+    hades_params['start'] = [str(start)]
+
+    # Rebuild the URL
+    new_query = urlencode(hades_params, doseq=True)
+    hades_url = urlunparse((parsed_hades.scheme, parsed_hades.netloc, parsed_hades.path, parsed_hades.params, new_query,parsed_hades.fragment))
+    return hades_url
 
 
 def send_notifications():
@@ -686,15 +722,10 @@ def is_skippable(query, Listing):
     return False
 
 
-def extract_listing_data(lst, query_uid):
+def extract_listing_data(item, query_uid):
     """Build a Listing object from the Beautifulsoup raw data"""
 
-    #print(json.dumps(lst, indent=2))
-
-    # Get the item from the JSON
-    item = lst.get('item', [])
-    if not item:
-        return False
+    #print(json.dumps(item, indent=2))
 
     # Extract the url of the item, if not valid exit here
     link = item.get('urls', {}).get('default', '')
@@ -707,16 +738,16 @@ def extract_listing_data(lst, query_uid):
     name = item.get('subject', 'Unknown')
 
     # Extract the price
-    price_values = item.get('features', {}).get('/price', {}).get('values', [])
-    price = int(price_values[0].get('key')) if price_values else None
+    price_feature = next((f for f in item.get('features', []) if f.get('uri') == '/price'), None)
+    price = int(price_feature['values'][0]['key']) if price_feature else None
 
     # Extract images
     item_images = item.get('images', [])
-    image_url = (item_images[0].get('cdnBaseUrl') + "?rule=card-desktop-new-small-3x-auto") if item_images else None
+    image_url = (item_images[0].get('cdn_base_url') + "?rule=card-desktop-new-small-3x-auto") if item_images else None
 
     # Is shipping available?
-    shipping_values = item.get('features', {}).get('/item_shipping_allowed', {}).get('values', [])
-    shipping = bool(shipping_values[0].get('key')) if shipping_values else False
+    shipping_feature = next((f for f in item.get('features', []) if f.get('uri') == '/item_shipping_allowed'), None)
+    shipping = bool(shipping_feature['values'][0]['key']) if shipping_feature else False
 
     # Extract location
     geo = item.get('geo', {})
