@@ -66,16 +66,21 @@ Execute a test:
 subitoo maintenance --testNotification
 ```
 ## Basic usage
-Go to [Subito.it](https://www.subito.it), permorm a search (apply all the filters you want) and copy the URL.
-
-```bash
-# example
-https://www.subito.it/annunci-lombardia/vendita/usato/?q=nvidia+gtx+1060&qso=true
+Go to [here](https://www.subito.it/annunci-italia/vendita/usato/?q=) and open DevTools
 ```
-Save it on ***Subitoo***:
+F12 or Ctrl+Shift+I (Windows/Linux) / Cmd+Option+I (Mac)
+```
+Perform a search (apply all the filters you want)
+
+Then copy the corresponding **hades** URL from the [network panel](https://github.com/Kianda/subitoo/blob/main/extra/images/network_hades_url.jpg).
+```bash
+# Hades url is something like this:
+https://hades.subito.it/v1/search/items?q=iphone+15&r=11&ci=4&t=s&qso=false&ndo=false&shp=false&urg=false&sort=datedesc&lim=30&start=0
+```
+Use it on ***Subitoo***:
 ```bash
 # example
-subitoo add --name "GTX 1060" --url "https://www.subito.it/annunci-lombardia/vendita/usato/?q=nvidia+gtx+1060&qso=true"
+subitoo add --name "iphone15" --url "https://hades.subito.it/v1/search/items?q=iphone+15&r=11&ci=4&t=s&qso=false&ndo=false&shp=false&urg=false&sort=datedesc&lim=30&start=0"
 ```
 You can check all your saved URLs with:
 ```bash
@@ -130,7 +135,7 @@ More complex *subitoo add* example, this will search for:
 - Apply [regex](https://regex101.com/r/sjzhHv/3) (?i)^(?=.*plus)(?!.*iphone 12) on listing title
 
 ```bash
-subitoo add --name MyiPhone --url "https://www.subito.it/annunci-italia/vendita/usato/?q=iPhone&qso=true&shp=true" --pages 2 --minPrice 200 --maxPrice 450 --skipNoPrice --skipSold --regex '(?i)^(?=.*plus)(?!.*iphone 12)' --skipSold --skipNoPrice```
+subitoo add --name iphone --url "https://hades.subito.it/v1/search/items?q=iphone&t=s&qso=false&ndo=false&shp=false&urg=false&sort=datedesc&lim=30&start=0" --pages 2 --minPrice 200 --maxPrice 450 --skipNoPrice --skipSold --regex '(?i)^(?=.*plus)(?!.*iphone 12)' --skipSold --skipNoPrice```
 ```
 
 ## Build
@@ -148,7 +153,7 @@ docker push $HUB_PATH:latest
 
 
 ## TODO
-Refactor *Subitoo* into a maintainable, object-oriented, and modular framework.
+Refactor *Subitoo* into a maintainable, object-oriented, and modular framework (*current app.py is an all-in-one mess*).
 - Apply object-oriented design principles to the core architecture
 - Decouple site-specific scraping logic from the core engine
 - Allow additional website scrapers to be added as independent modules

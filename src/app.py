@@ -563,7 +563,15 @@ def execute_run(query):
     for page_counter in range(total_pages):
         hades_start = page_counter * hades_limit
         current_page = page_counter + 1
-        hades_url = build_hades_url_from_subito_url(query['url'],hades_limit,hades_start)
+
+        # Switch old subito url (partially working) vs new hades url (fully working)
+        # and apply pagination
+        url_parsed = urlparse(query['url'])
+        url_hostname = url_parsed.netloc.lower()
+        if url_hostname in ('www.subito.it', 'subito.it'):
+            hades_url = build_hades_url_from_subito_url(query['url'], hades_limit, hades_start)
+        else:
+            hades_url = hades_url_with_pagination(query['url'], hades_limit, hades_start)
 
         if current_page > 1: time.sleep(seconds_between_pages)
         try:
@@ -635,6 +643,20 @@ def execute_run(query):
 
     logging.info("")
     logging.info("END: '{}'".format(query['name']))
+
+
+def hades_url_with_pagination(hades_url, limit=30, start=0):
+    hades_parsed_url = urlparse(hades_url)
+    hades_query_params = parse_qs(hades_parsed_url.query)
+
+    # Limit & pagination
+    hades_query_params['lim'] = [str(limit)]
+    hades_query_params['start'] = [str(start)]
+
+    # Rebuild the URL
+    new_query = urlencode(hades_query_params, doseq=True)
+    hades_url = urlunparse((hades_parsed_url.scheme, hades_parsed_url.netloc, hades_parsed_url.path, hades_parsed_url.params, new_query,hades_parsed_url.fragment))
+    return hades_url
 
 
 def build_hades_url_from_subito_url(subito_url, limit=30, start=0):
