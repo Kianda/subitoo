@@ -66,7 +66,7 @@ Execute a test:
 subitoo maintenance --testNotification
 ```
 ## Basic usage
-Go to [here](https://www.subito.it/annunci-italia/vendita/usato/?q=) and open DevTools
+Go [here](https://www.subito.it/annunci-italia/vendita/usato/?q=) and open DevTools
 ```
 F12 or Ctrl+Shift+I (Windows/Linux) / Cmd+Option+I (Mac)
 ```
