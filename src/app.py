@@ -613,6 +613,7 @@ def execute_run(query):
 
             logging.info("")
             logging.info("'{}'".format(Listing.name))
+            logging.info("'{}'".format(Listing.url))
             changed = is_something_changed(Listing, query['uid'])
             reason = is_skippable(query, Listing)
             if reason is not False:
