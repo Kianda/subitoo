@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Thin wrapper so you can run `./subitoo <args>` instead of the full
+# `docker compose exec subitoo subitoo <args>`. Allocates a TTY for interactive
+# commands (e.g. the `query add` wizard) and drops it when piped/scripted.
+cd "$(dirname "$0")"
+
+if [ -t 0 ] && [ -t 1 ]; then
+    TTY_FLAG=""       # interactive terminal -> keep TTY (prompts work)
+else
+    TTY_FLAG="-T"     # piped/non-interactive -> no TTY
+fi
+
+# `subitoo` (service) then `subitoo` (the CLI inside it).
+exec docker compose exec $TTY_FLAG subitoo subitoo "$@"

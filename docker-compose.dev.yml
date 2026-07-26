@@ -1,0 +1,51 @@
+# Local development stack — self-contained, builds from source, no registry indirection.
+# This is the SIMPLE one: plain `build:`, concrete values, no ${VAR} substitution.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build        # (or ./start.sh --dev)
+#
+# Normal users run the published images via docker-compose.yml instead. Keep the two
+# files' service config (labels / volumes / browser env) in sync when you change one.
+services:
+  subitoo:
+    container_name: subitoo
+    build: ./app
+    env_file: .env            # app runtime config + secrets (DB_PATH, PUSHOVER_*, ...)
+    environment:
+      - TZ=UTC
+    volumes:
+      - ./data:/data
+    depends_on:
+      - subitoo_browser
+    # Not a server: ofelia execs `subitoo run-due` into this container.
+    command: tail -f /dev/null
+    restart: unless-stopped
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.run-due.schedule: "@every 1m"
+      ofelia.job-exec.run-due.command: "subitoo run-due"
+
+  subitoo_scheduler:
+    container_name: subitoo_scheduler
+    image: mcuadros/ofelia:latest
+    depends_on:
+      - subitoo
+    command: daemon --docker
+    environment:
+      - TZ=UTC
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  subitoo_browser:
+    container_name: subitoo_browser
+    build: ./browser
+    environment:
+      - TZ=UTC
+      - CAMOUFOX_PORT=1234
+      - CAMOUFOX_WS_PATH=hello
+      - CAMOUFOX_HEADLESS=false
+    # ws://subitoo_browser:1234/hello on the internal network (not published to host).
+    expose:
+      - "1234"
+    shm_size: "2gb"
+    restart: unless-stopped

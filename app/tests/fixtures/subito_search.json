@@ -1,0 +1,30 @@
+{
+  "ads": [
+    {
+      "urn": "urn:subito:12345",
+      "subject": "Nikon 50mm f/1.8 AF-S",
+      "urls": {"default": "https://www.subito.it/foto-accessori/nikon-12345.htm"},
+      "features": [
+        {"uri": "/price", "values": [{"key": "120", "value": "120 €"}]},
+        {"uri": "/item_shippable", "values": [{"key": "1", "value": "Sì"}]}
+      ],
+      "geo": {"town": {"value": "Milano"}, "city": {"value": "Milano", "short_name": "MI"}},
+      "dates": {"display": "2026-07-07 11:26:24", "display_iso8601": "2026-07-07T11:26:24+0200"},
+      "images": [{
+        "uri": "imgid:8c4a6adb-d972-44be-97ec-a8aea29b13ae",
+        "base_url": "https://s.sbito.it/img/8c/8c4a6adb-d972-44be-97ec-a8aea29b13ae",
+        "cdn_base_url": "https://images.sbito.it/api/v1/sbt-ads-images-pro/images/8c/8c4a6adb-d972-44be-97ec-a8aea29b13ae"
+      }]
+    },
+    {
+      "urn": "urn:subito:67890",
+      "subject": "Nikon body rotto per ricambi",
+      "urls": {"default": "https://www.subito.it/foto-accessori/nikon-67890.htm"},
+      "features": [
+        {"uri": "/price", "values": [{"key": "30"}]}
+      ],
+      "geo": {"city": {"value": "Roma"}},
+      "images": []
+    }
+  ]
+}

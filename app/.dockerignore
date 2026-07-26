@@ -1,0 +1,10 @@
+# Keep the build context lean and host-specific junk OUT of the image, so every build
+# produces the same bytes. Docker uploads everything here to the daemon, and `COPY . .`
+# would otherwise bake it in (notably the ~57MB host-built .venv).
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.dockerignore
+Dockerfile

@@ -1,0 +1,56 @@
+# subitoo — user-facing stack. Runs PRE-BUILT images pulled from Docker Hub (kianda/*),
+# so every install runs the same bytes (SPEC.md §12). Pin a release with SUBITOO_VERSION
+# in .env (default: latest). Want your own images? Fork the repo and change 'kianda' here.
+#
+# Contributors/maintainers who want to build from local source use the standalone
+# docker-compose.dev.yml instead:  docker compose -f docker-compose.dev.yml up --build
+# (or just ./start.sh --dev).
+services:
+  subitoo:
+    container_name: subitoo
+    image: kianda/subitoo:${SUBITOO_VERSION:-latest}
+    env_file: .env
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ./data:/data
+    depends_on:
+      - subitoo_browser
+    # Not a server: ofelia execs `subitoo run-due` into this container.
+    command: tail -f /dev/null
+    restart: unless-stopped
+    # Ofelia reads its job config from these labels (job-exec labels live on the
+    # target container). Schedule defaults to every 1m; override via OFELIA_SCHEDULE.
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.run-due.schedule: "${OFELIA_SCHEDULE:-@every 1m}"
+      ofelia.job-exec.run-due.command: "subitoo run-due"
+
+  subitoo_scheduler:
+    container_name: subitoo_scheduler
+    image: mcuadros/ofelia:latest
+    depends_on:
+      - subitoo
+    command: daemon --docker
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  subitoo_browser:
+    container_name: subitoo_browser
+    image: kianda/subitoo-browser:${SUBITOO_VERSION:-latest}
+    environment:
+      - TZ=${TZ:-UTC}
+      - CAMOUFOX_PORT=1234
+      - CAMOUFOX_WS_PATH=hello
+      - CAMOUFOX_HEADLESS=${CAMOUFOX_HEADLESS:-false}
+      # same egress IP as the HTTP client
+      - PROXY_URL=${PROXY_URL:-}
+    # Playwright WS server reachable in-network as ws://subitoo_browser:1234/hello
+    # (not published to the host by default).
+    expose:
+      - "1234"
+    shm_size: "2gb"
+    restart: unless-stopped
