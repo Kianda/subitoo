@@ -10,10 +10,10 @@ WORKDIR /app
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .[browser] || true
 
-# Now the source and a real editable/normal install so the `scraper` script exists.
+# Now the source and a real editable/normal install so the `subitoo` script exists.
 COPY . .
 RUN pip install --no-cache-dir .[browser]
 
-# The app is not a server: ofelia execs `scraper run-due` into this container.
+# The app is not a server: ofelia execs `subitoo run-due` into this container.
 # Keep it alive and idle.
 CMD ["tail", "-f", "/dev/null"]
