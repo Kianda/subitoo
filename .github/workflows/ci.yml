@@ -1,0 +1,31 @@
+name: CI
+
+# Network-free test gate. A green run is the bar before a contributed site is merged
+# and baked into the next release (SPEC.md Decision 25). Live tests (--live) are opt-in
+# and never run here.
+#
+# Deps are installed with a FRESH resolve (pip, no lockfile) on Python 3.12 — the same
+# way app/Dockerfile builds the shipped image — so tests run against the exact versions
+# a release would pull, never a frozen set.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install (fresh resolve, same as the image build)
+        working-directory: app
+        run: pip install .[dev]
+
+      - name: Run tests
+        working-directory: app
+        run: python -m pytest

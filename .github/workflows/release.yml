@@ -1,0 +1,81 @@
+name: Release
+
+# Publish pre-built images to Docker Hub (SPEC.md §12). The ONLY trigger is a pushed
+# semver git tag — a plain push to main never builds. Cut a release with:
+#
+#   git tag v2.0.0 && git push origin v2.0.0
+#
+# Produces, for BOTH images, in lockstep. Tag v2.0.4 ->
+#   kianda/subitoo:2.0.4     kianda/subitoo-browser:2.0.4     (immutable, users pin)
+#   kianda/subitoo:2.0       kianda/subitoo-browser:2.0       (moving patch)
+#   kianda/subitoo:2         kianda/subitoo-browser:2         (moving minor)
+#   kianda/subitoo:latest    kianda/subitoo-browser:latest    (newest stable)
+#
+# A pre-release tag (v2.1.0-rc1) still builds + pushes its own version tag but does NOT
+# move 2 / 2.0 / latest (metadata-action `latest=auto`).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: app
+            repo: subitoo            # the main image is just kianda/subitoo
+            context: ./app
+            # app is pure-Python -> cross-builds cleanly.
+            platforms: linux/amd64,linux/arm64
+          - image: browser
+            repo: subitoo-browser
+            context: ./browser
+            # browser fetches a Camoufox/Firefox build at build time; arm64 is unverified
+            # (SPEC.md §12). Ship amd64 only for now; add linux/arm64 once live-validated.
+            platforms: linux/amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Derive tags & labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.repo }}
+          # `latest=auto` -> tag `latest` only for a non-pre-release semver tag.
+          flavor: latest=auto
+          # From tag v2.0.4 -> 2.0.4 + 2.0 + 2 + latest. A pre-release (v2.1.0-rc1) gets
+          # only its full version tag; it never moves 2 / 2.0 / latest.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: ${{ matrix.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Registry-backed layer cache, scoped per image, so an unchanged browser/ is a
+          # cache-hit re-tag rather than a full Firefox rebuild (lockstep, SPEC.md §12).
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
