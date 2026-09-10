@@ -22,7 +22,7 @@ from rich.table import Table
 from subitoo.config import get_settings
 from subitoo.core import db, pipeline
 from subitoo.core.fetch import build_context
-from subitoo.core.models import Filters, QueryStatus
+from subitoo.core.models import Filters, Query, QueryStatus
 from subitoo.sites.base import BaseSite
 from subitoo import registry
 
@@ -54,6 +54,40 @@ def _fmt_ts(ts: int | None) -> str:
         return "-"
     tz = ZoneInfo(get_settings().tz)
     return datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%d %H:%M")
+
+
+def _iso_ts(ts: int | None) -> str | None:
+    """Epoch -> ISO-8601 with offset in the configured tz. Readable like the table's
+    timestamps, but still machine-parseable — which is what a --json consumer needs."""
+    if not ts:
+        return None
+    return datetime.fromtimestamp(ts, ZoneInfo(get_settings().tz)).isoformat()
+
+
+def _query_json(q: Query) -> dict:
+    """The JSON shape of one query, shared by `query list --json` and `query show`.
+
+    Every column of the row, so --json is the whole truth: `search` (the site URL and
+    per-site knobs) and `filters` (price, shipping, the title regexes) included. The
+    table stays the human summary; one serializer keeps the two from drifting apart.
+    """
+    return {
+        "id": q.id,
+        "name": q.name,
+        "site": q.site,
+        "search": q.search,
+        "filters": q.filters.model_dump(),
+        "cron": q.cron,
+        "run_delay_seconds": q.run_delay_seconds,
+        "enabled": q.enabled,
+        "seeded": q.seeded,
+        "status": q.status.value,
+        "status_changed_at": _iso_ts(q.status_changed_at),
+        "last_run_at": _iso_ts(q.last_run_at),
+        "next_run_at": _iso_ts(q.next_run_at),
+        "created_at": _iso_ts(q.created_at),
+        "updated_at": _iso_ts(q.updated_at),
+    }
 
 
 def _validate_cron_or_exit(expr: str) -> None:
@@ -324,11 +358,7 @@ def query_list(as_json: bool = typer.Option(False, "--json")) -> None:
     conn = _conn()
     queries = db.list_queries(conn)
     if as_json:
-        console.print_json(json.dumps([
-            {"id": q.id, "name": q.name, "site": q.site, "enabled": q.enabled,
-             "status": q.status.value, "cron": q.cron, "last_run_at": q.last_run_at}
-            for q in queries
-        ]))
+        console.print_json(json.dumps([_query_json(q) for q in queries]))
         return
     registry.load_all()
     t = Table("id", "name", "site", "enabled", "status", "cron", "last run")
@@ -352,13 +382,7 @@ def query_show(query_id: int) -> None:
     if not q:
         console.print(f"[red]No query {query_id}[/red]")
         raise typer.Exit(1)
-    console.print_json(json.dumps({
-        "id": q.id, "name": q.name, "site": q.site, "search": q.search,
-        "filters": q.filters.model_dump(), "cron": q.cron,
-        "run_delay_seconds": q.run_delay_seconds, "enabled": q.enabled,
-        "seeded": q.seeded, "status": q.status.value,
-        "last_run_at": _fmt_ts(q.last_run_at),
-    }))
+    console.print_json(json.dumps(_query_json(q)))
 
 
 @query_app.command("rm")
