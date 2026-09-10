@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import typer
@@ -22,6 +23,7 @@ from subitoo.config import get_settings
 from subitoo.core import db, pipeline
 from subitoo.core.fetch import build_context
 from subitoo.core.models import Filters, QueryStatus
+from subitoo.sites.base import BaseSite
 from subitoo import registry
 
 app = typer.Typer(no_args_is_help=True, help="subitoo — modular marketplace scraper")
@@ -76,6 +78,16 @@ def _prompt_run_delay() -> int:
                        default="5")
     try:
         return _parse_run_delay(raw)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from None
+
+
+def _validate_search_or_exit(adapter: BaseSite, search: dict) -> dict:
+    """Adapter-side validation is a user-input check, not a crash: a bad URL or an
+    unsupported filter should read as one red line, the way a bad cron does."""
+    try:
+        return adapter.validate_search(search)
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from None
@@ -175,15 +187,48 @@ def cmd_notifiers() -> None:
 
 # --------------------------------------------------------------------- query CRUD
 
-def _run_wizard(site: str) -> tuple[dict, Filters, str, str, int]:
+def _pick_site(available: list[str]) -> tuple[str, dict]:
+    """Work out which site the query is for, and any search field that fell out of it.
+
+    URL-based adapters declare ``url_host_pattern``, so the URL the user has to paste
+    anyway already answers "which site?" — we ask for it first and infer. That also
+    makes a site/URL mismatch impossible instead of an error. Only if nothing claims
+    the URL (or no installed adapter is URL-based) do we fall back to asking.
+    """
+    if any(registry.SITES[k].url_host_pattern for k in available):
+        url = typer.prompt("Paste the search URL").strip()
+        site = registry.site_for_url(url)
+        if site:
+            console.print(f"Site: [bold]{site}[/bold] (from the URL)")
+            return site, {"url": url}
+        console.print(f"[yellow]No installed site handles "
+                      f"{urlsplit(url).netloc or url!r}.[/yellow]")
+    if len(available) == 1:
+        console.print(f"Site: [bold]{available[0]}[/bold] (only one available)")
+        return available[0], {}
+    console.print(f"Available sites: {', '.join(available)}")
+    return typer.prompt("Site"), {}
+
+
+def _needs_resolve(adapter: BaseSite) -> bool:
+    """Whether this adapter does add-time work — i.e. overrides ``resolve``. The base
+    implementation is a no-op, so calling it for (say) Vinted only prints a status
+    message about work that never happens."""
+    return type(adapter).resolve is not BaseSite.resolve
+
+
+def _run_wizard(site: str, prefill: dict | None = None) -> tuple[dict, Filters, str, str, int]:
     adapter = registry.get_site(site)
-    search: dict = {}
+    search: dict = dict(prefill or {})  # e.g. the URL we inferred the site from
     console.print(f"[bold]Search fields for {site}[/bold]")
     for f in adapter.search_schema:
+        if f.name in search:
+            console.print(f"  {f.prompt}: [dim]{search[f.name]}[/dim]")
+            continue
         val = typer.prompt(f"  {f.prompt}", default=f.default or "", show_default=bool(f.default))
         if val:
             search[f.name] = val
-    adapter.validate_search(search)
+    _validate_search_or_exit(adapter, search)
 
     console.print("[bold]Universal filters[/bold] (blank = skip)")
     pmin = typer.prompt("  price_min", default="", show_default=False)
@@ -208,13 +253,17 @@ def _run_wizard(site: str) -> tuple[dict, Filters, str, str, int]:
 
 
 def _resolve_search(site: str, search: dict) -> dict:
-    """Enrich the search blob at add-time (adapter.resolve): capture the fast-replay
-    api_url so runtime doesn't have to re-derive it. Pure definition-time work — no
-    DB, no fetching listings. Interactive `add` then seeds via the real pipeline; the
-    confirmation that the URL works falls out of that seed run."""
+    """Enrich the search blob at add-time (adapter.resolve) — e.g. Subito captures the
+    fast-replay api_url so runtime doesn't have to re-derive it. Pure definition-time
+    work — no DB, no fetching listings. Interactive `add` then seeds via the real
+    pipeline; the confirmation that the URL works falls out of that seed run.
+
+    A no-op for adapters that don't override ``resolve`` — callers skip it entirely
+    via ``_needs_resolve`` rather than printing a status for work that never happens.
+    """
     adapter = registry.get_site(site)
     ctx = build_context(get_settings(), needs_browser=adapter.needs_browser)
-    with console.status("Resolving the search via the browser…"):
+    with console.status(f"Resolving the search for {site}…"):
         search = adapter.resolve(search, ctx)
     return search
 
@@ -222,7 +271,6 @@ def _resolve_search(site: str, search: dict) -> dict:
 @query_app.command("add")
 def query_add(
     from_json: Optional[Path] = typer.Option(None, "--from-json", help="Load the query from a JSON file"),
-    site: Optional[str] = typer.Option(None, "--site", help="Site key (skips the site prompt)"),
 ) -> None:
     """Create a query (interactive wizard, or --from-json for scripting)."""
     conn = _conn()
@@ -230,8 +278,9 @@ def query_add(
         spec = json.loads(from_json.read_text())
         filters = Filters.model_validate(spec.get("filters", {}))
         _validate_cron_or_exit(spec["cron"])
-        search = registry.get_site(spec["site"]).validate_search(spec["search"])
-        if not search.get("api_url"):
+        adapter = registry.get_site(spec["site"])
+        search = _validate_search_or_exit(adapter, spec["search"])
+        if _needs_resolve(adapter):
             search = _resolve_search(spec["site"], search)
         delay = _parse_run_delay(spec.get("run_delay_seconds", 5))
         qid = db.create_query(conn, name=spec["name"], site=spec["site"],
@@ -244,26 +293,21 @@ def query_add(
 
     registry.load_all()
     available = registry.site_keys()
-    if not site:
-        if len(available) == 1:
-            site = available[0]  # only one site registered — no point asking
-            console.print(f"Site: [bold]{site}[/bold] (only one available)")
-        else:
-            console.print(f"Available sites: {', '.join(available)}")
-            site = typer.prompt("Site")
-    if site not in available:
+    site, prefill = _pick_site(available)
+    if site not in available:  # only reachable via the typed fallback in _pick_site
         console.print(f"[red]Unknown site {site!r}[/red] (have: {', '.join(available)})")
         raise typer.Exit(1)
 
-    search, filters, cron, name, delay = _run_wizard(site)
-    search = _resolve_search(site, search)
+    search, filters, cron, name, delay = _run_wizard(site, prefill)
+    if _needs_resolve(registry.get_site(site)):
+        search = _resolve_search(site, search)
     qid = db.create_query(conn, name=name, site=site, search=search, filters=filters,
                           cron=cron, run_delay_seconds=delay)
     # Seed now via the real pipeline: the first run records the current listings as the
     # baseline (notifies nothing) and flips `seeded` — and doubles as the confirmation
     # that the URL actually works. If the fetch fails it latches to 'error' like any run.
     db.set_status(conn, qid, QueryStatus.RUNNING)
-    with console.status("Seeding the baseline via the browser…"):
+    with console.status("Seeding the baseline…"):
         res = pipeline.run_query(conn, qid)
     if db.get_query(conn, qid).status == QueryStatus.ERROR:
         console.print(f"[yellow]Created query {qid}[/yellow] ({name}) — but the seed fetch "

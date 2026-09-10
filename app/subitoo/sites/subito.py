@@ -222,12 +222,12 @@ class SubitoSite(BaseSite):
                     required=False, default="1"),
     ]
 
+    #: The base class uses this both to claim a pasted URL (so `query add` doesn't
+    #: have to ask which site) and to reject a URL from anywhere else.
+    url_host_pattern = r"(^|\.)subito\.it$"
+
     def validate_search(self, search: dict[str, Any]) -> dict[str, Any]:
-        super().validate_search(search)
-        url = (search.get("url") or "").strip()
-        if "subito.it/" not in url:
-            raise ValueError("subito: 'url' must be a subito.it search page URL")
-        search["url"] = url
+        super().validate_search(search)  # required fields + the subito.it URL check
         mp = search.get("max_pages") or "1"
         try:
             if int(mp) < 1:
@@ -240,7 +240,11 @@ class SubitoSite(BaseSite):
     def resolve(self, search: dict[str, Any], ctx: FetchContext) -> dict[str, Any]:
         # Let Subito build the hades URL: load the pasted page, capture the
         # /search/items call it fires, and store it for fast runtime replay.
-        search["api_url"] = _capture_api_url(search["url"], ctx)
+        # Skipped if the blob already carries one (a `--from-json` import of an
+        # already-resolved query) — that's why bulk imports don't fire a browser
+        # session per query. Drop `api_url` from the blob to force a re-capture.
+        if not search.get("api_url"):
+            search["api_url"] = _capture_api_url(search["url"], ctx)
         return search
 
     def fetch(self, search: dict[str, Any], ctx: FetchContext) -> Iterable[Listing]:

@@ -7,9 +7,11 @@ that uniformly, so every new adapter gets those features for free.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import Any
+from urllib.parse import urlsplit
 
 from subitoo.core.fetch import FetchContext
 from subitoo.core.models import Listing, SearchField
@@ -35,14 +37,37 @@ class BaseSite(ABC):
     #: fields the CLI wizard prompts for to build this site's search blob.
     search_schema: list[SearchField] = []
 
+    #: Regex matched against the HOST of the user's search URL. Setting it declares
+    #: "my search is a URL, in the ``url`` field" and buys two things: `query add`
+    #: infers the site from the pasted URL instead of asking, and the base
+    #: ``validate_search`` rejects a URL from the wrong site for free. Left empty, the
+    #: adapter is not URL-based and the wizard asks which site as before.
+    #: Matched against the host, not the whole URL — otherwise a search term or a
+    #: `?ref=` param could make the wrong adapter claim the link.
+    url_host_pattern: str = ""
+
+    @classmethod
+    def claims_url(cls, url: str) -> bool:
+        """Whether this adapter handles that search URL (see ``url_host_pattern``)."""
+        if not cls.url_host_pattern:
+            return False
+        return bool(re.search(cls.url_host_pattern, urlsplit(url).netloc))
+
     def validate_search(self, search: dict[str, Any]) -> dict[str, Any]:
         """Optional: validate/normalize the user's search blob at CRUD time.
 
-        Default enforces required fields from ``search_schema``.
+        Default enforces required fields from ``search_schema``, and — for URL-based
+        adapters (``url_host_pattern``) — trims the URL and checks it belongs to this
+        site, so each adapter doesn't hand-roll its own domain test.
         """
         for f in self.search_schema:
             if f.required and not search.get(f.name):
                 raise ValueError(f"search field {f.name!r} is required for {self.key}")
+        if self.url_host_pattern:
+            url = (search.get("url") or "").strip()
+            if not self.claims_url(url):
+                raise ValueError(f"{self.key}: 'url' must be a {self.key} search URL")
+            search["url"] = url
         return search
 
     def resolve(self, search: dict[str, Any], ctx: FetchContext) -> dict[str, Any]:

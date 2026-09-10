@@ -8,11 +8,11 @@ A self-hosted, **modular** marketplace scraper.
 ## Requirements
 
 - [Docker](https://docs.docker.com/get-docker/)
-- [Pushover](https://pushover.net) account — optional, for phone notifications
+- For phone notifications — optional, and pick one: [ntfy](https://ntfy.sh) (no account, just install the app) or a [Pushover](https://pushover.net) account
 
 ## Features
 
-- Watch multiple marketplace sites (more coming soon...)
+- Watch multiple marketplace sites — **Subito.it** and **Vinted** (more coming soon...)
 - Per-query schedules (each saved search has its own cron)
 - Alerts on **new** matches and **price changes**
 - Universal filters: price range, shipping present/absent, title include/exclude (regex)
@@ -22,7 +22,7 @@ A self-hosted, **modular** marketplace scraper.
 ## Quick start
 
 ```bash
-cp .env.example .env      # optional: add PUSHOVER_TOKEN / PUSHOVER_USER
+cp .env.example .env      # optional: set up notifications (see below)
 ./start.sh                # pull the images + start everything, wait until healthy
 ./subitoo query add       # create a search (interactive wizard)
 ./subitoo query list      # see your searches
@@ -46,14 +46,59 @@ then just `subitoo query list` from anywhere.
 
 `./subitoo query add` walks you through it:
 
-1. **Pick a site** (e.g. `subito`).
-2. **Paste a Subito search URL.** Set up the region, category, keywords and sorting on
-   Subito itself, then copy the URL from your browser. (Result pages to scan defaults to 1.)
-3. **Add filters** — price range, shipping, title include/exclude (regex).
+1. **Pick a site** — `subito` or `vinted`.
+2. **Paste the search URL.** Set up the keywords, category, region and sorting on the site
+   itself, then copy the URL from your browser's address bar. (Result pages to scan defaults
+   to 1 — that's 30 listings on Subito, 96 on Vinted.)
+3. **Add filters** — price range, shipping, title include/exclude (regex). Which of these
+   you actually need depends on the site — see below.
 4. **Set the schedule** — a cron expression (default: every 4 hours).
 
 The search runs once immediately to seed a silent baseline (this also confirms the URL
 works); you start getting alerts from the next run.
+
+### Which filters go where
+
+The two sites draw the line in different places, because Subito's own price filter only
+appears once you pick a category while Vinted lets you set everything up front:
+
+| | Subito.it | Vinted |
+|---|---|---|
+| **Price** | Subitoo's `price_min` / `price_max` | on Vinted — it rides along in the URL |
+| **Shipping** | Subitoo's `shipping` filter | n/a, every Vinted item ships |
+| **Category, brand, size, condition** | in the pasted URL | in the pasted URL |
+| **Title regex** | Subitoo's `title_include` / `title_exclude` | same — the one thing neither site can express |
+
+So on Vinted you leave `price_min`, `price_max` and `shipping` blank and use only the title
+regex. If a Vinted URL carries a filter Subitoo can't pass through to Vinted's API, it's
+refused when you create the search rather than silently dropped, so your results always
+match what the URL says.
+
+### Title filters (regex)
+
+`title_include` / `title_exclude` are Python regexes matched against the listing **title**:
+
+- **Case-insensitive**, and matched **anywhere in the title** — `iphone` matches
+  "Apple iPhone 13". Anchor with `^` / `$` if you need the whole title.
+- `title_include` keeps only matching listings; `title_exclude` drops matching ones.
+  If both match, **exclude wins**.
+- Blank = filter off. An invalid pattern is rejected when you create the search.
+
+Example (on Subito, where the price filter is Subitoo's) — Synology NAS between €75 and
+€150, only the models you want, minus the cut-down one:
+
+```
+  price_min             75
+  price_max             150
+  title_include (regex) DS ?124|DS ?220|DS ?223|DS ?218
+  title_exclude (regex) DS218j
+```
+
+`|` is "or", `DS ?124` allows an optional space ("DS124" and "DS 124" both match). Note
+that `DS ?218` also matches "DS218j" — the exclude is what filters it back out.
+
+**Tip:** test a pattern on [regex101.com](https://regex101.com/) (flavor: Python, flag
+`i`) before saving the search.
 
 ## CLI
 
@@ -75,19 +120,40 @@ notify test                  # send a test notification
 
 `subitoo --help` documents everything.
 
-## Notifications (Pushover)
+## Notifications
+
+**Pushover** and **ntfy** ship in-box. One channel is active at a time — pick it with
+`DEFAULT_CHANNEL` in `.env` and verify with `./subitoo notify test`. Adding another is a
+single file (see [`CONTRIBUTING.md`](./CONTRIBUTING.md)).
+
+Either way an alert carries the listing's image, and tapping it opens the listing.
+
+### Pushover
 
 Grab your **USER_KEY** from the [Pushover homepage](https://pushover.net) and an
 **APPLICATION_TOKEN** from a [new Pushover app](https://pushover.net/apps/build), then put
 them in `.env`:
 
 ```ini
+DEFAULT_CHANNEL=pushover
 PUSHOVER_USER=your_user_key
 PUSHOVER_TOKEN=your_app_token
 ```
 
-Verify with `./subitoo notify test`. Notifications are modular — other channels can be
-added (see [`CONTRIBUTING.md`](./CONTRIBUTING.md)); set the active one with `DEFAULT_CHANNEL`.
+### ntfy
+
+Install [ntfy](https://ntfy.sh) on your phone, subscribe to a topic, and name that topic
+in `.env`. No account needed:
+
+```ini
+DEFAULT_CHANNEL=ntfy
+NTFY_TOPIC=subitoo-3f9c1ab74e2d
+```
+
+⚠️ **The topic name is the password.** On the public ntfy.sh server anyone who knows it
+can read your alerts and post to them, so use a long random one — `NTFY_TOPIC=nas` is
+effectively public. Self-hosting instead? Set `NTFY_URL` to your server, and `NTFY_TOKEN`
+if the topic is access-controlled.
 
 ## FAQ
 

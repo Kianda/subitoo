@@ -1,0 +1,88 @@
+{
+  "items": [
+    {
+      "id": 9803216148,
+      "title": "NAS Synology DS223",
+      "price": {
+        "amount": "170.0",
+        "currency_code": "EUR"
+      },
+      "url": "https://www.vinted.it/items/9803216148-nas-synology-ds223",
+      "path": "/items/9803216148-nas-synology-ds223",
+      "brand_title": "Synology",
+      "size_title": "",
+      "status": "Nuovo con cartellino",
+      "total_item_price": {
+        "amount": "179.2",
+        "currency_code": "EUR"
+      },
+      "favourite_count": 8,
+      "is_visible": true,
+      "photo": {
+        "id": 41448505255,
+        "url": "https://images1.vinted.net/t/02_01afa_ndkpsqZ7XunkLbpWwEWdKAag/f800/1787904428.jpeg?s=631eab9f623b5d9718aed8e1042b74482bbc99cd",
+        "high_resolution": {
+          "id": "02_01afa_ndkpsqZ7XunkLbpWwEWdKAag",
+          "timestamp": 1787904428,
+          "orientation": null
+        }
+      }
+    },
+    {
+      "id": 9779924610,
+      "title": "NAS Synology DS720+ avec HDD d’origine",
+      "price": {
+        "amount": "500.0",
+        "currency_code": "EUR"
+      },
+      "url": "https://www.vinted.it/items/9779924610-nas-synology-ds720-avec-hdd-dorigine",
+      "path": "/items/9779924610-nas-synology-ds720-avec-hdd-dorigine",
+      "brand_title": "Synology",
+      "size_title": "",
+      "status": "Nuovo senza cartellino",
+      "total_item_price": {
+        "amount": "525.7",
+        "currency_code": "EUR"
+      },
+      "favourite_count": 9,
+      "is_visible": true,
+      "photo": {
+        "id": 41354198442,
+        "url": "https://images1.vinted.net/t/05_01c8c_svXEhAFpmpTRGpL4TNWdLySm/f800/1787690886.jpeg?s=a4066ac728ad9fb996600efc5659c2ffd72e531d",
+        "high_resolution": {
+          "id": "05_01c8c_svXEhAFpmpTRGpL4TNWdLySm",
+          "timestamp": 1787690886,
+          "orientation": null
+        }
+      }
+    },
+    {
+      "id": 9705758767,
+      "title": "Synology RT2600AC gigabit router",
+      "price": {
+        "amount": "89.99",
+        "currency_code": "EUR"
+      },
+      "url": "https://www.vinted.it/items/9705758767-synology-rt2600ac-gigabit-router",
+      "path": "/items/9705758767-synology-rt2600ac-gigabit-router",
+      "brand_title": "",
+      "size_title": "",
+      "status": "Buone condizioni",
+      "total_item_price": {
+        "amount": "105.7",
+        "currency_code": "EUR"
+      },
+      "favourite_count": 0,
+      "is_visible": true,
+      "photo": {}
+    }
+  ],
+  "pagination": {
+    "current_page": 1,
+    "total_pages": 1,
+    "total_entries": 33,
+    "per_page": 96,
+    "time": 1788268783
+  },
+  "code": 0
+}

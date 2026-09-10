@@ -17,6 +17,9 @@ from subitoo.core.models import Listing, SearchField
 @register("mysite")
 class MySite(BaseSite):
     needs_browser = False                      # True if it needs the Camoufox browser
+    url_host_pattern = r"(^|\.)mysite\.com$"   # host regex: lets `query add` infer the
+                                               # site from the pasted URL, and rejects
+                                               # another site's URL. Omit if not URL-based.
     search_schema = [SearchField("url", "Search URL")]
 
     def fetch(self, search, ctx):
@@ -25,7 +28,10 @@ class MySite(BaseSite):
 ```
 
 That's it — filtering, dedup, first-run seeding, and notifications are handled by the
-core; adding a site changes **zero** core lines. Use `app/subitoo/sites/subito.py` (a
+core; adding a site changes **zero** core lines. Set `url_host_pattern` and the wizard
+stops asking which site a query is for — it reads it off the URL the user pastes, and
+the base `validate_search` rejects a URL from anywhere else, so you don't hand-roll a
+domain check. Use `app/subitoo/sites/subito.py` (a
 browser-based adapter) and `sites/base.py` as references.
 
 To take a whole site offline (e.g. it changed its markup or access rules and the adapter

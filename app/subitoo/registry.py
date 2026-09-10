@@ -77,6 +77,16 @@ def get_notifier(key: str) -> "BaseNotifier":
     return NOTIFIERS[key]()
 
 
+def site_for_url(url: str) -> str | None:
+    """The site key whose adapter claims this search URL, or None if none does.
+
+    Lets `query add` infer the site from the pasted URL instead of asking. Adapters
+    opt in by setting ``url_host_pattern``; ones that aren't URL-based never match.
+    """
+    load_all()
+    return next((k for k, cls in sorted(SITES.items()) if cls.claims_url(url)), None)
+
+
 def site_keys() -> list[str]:
     load_all()
     return sorted(SITES)
