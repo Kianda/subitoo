@@ -21,6 +21,7 @@ class MySite(BaseSite):
                                                # site from the pasted URL, and rejects
                                                # another site's URL. Omit if not URL-based.
     search_schema = [SearchField("url", "Search URL")]
+    universal_filters = ("title_include", "title_exclude")   # optional; default = all
 
     def fetch(self, search, ctx):
         resp = ctx.http.get(search["url"])     # ctx.http = Firefox-impersonated client
@@ -33,6 +34,12 @@ stops asking which site a query is for — it reads it off the URL the user past
 the base `validate_search` rejects a URL from anywhere else, so you don't hand-roll a
 domain check. Use `app/subitoo/sites/subito.py` (a
 browser-based adapter) and `sites/base.py` as references.
+
+Narrow `universal_filters` when the site's own search URL already expresses a filter —
+the wizard then stops asking for it and says so on screen. It governs the **prompts**
+only: the core still applies every filter stored on a query, on every site, so a user can
+still set a skipped one via `query add --from-json`. Leave it out and your site is asked
+for all of them.
 
 To take a whole site offline (e.g. it changed its markup or access rules and the adapter
 needs a fix), set `enabled = False` on the class and commit — the scheduler skips it while

@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from subitoo.core.fetch import FetchContext
-from subitoo.core.models import Listing, SearchField
+from subitoo.core.models import UNIVERSAL_FILTERS, Listing, SearchField
 
 
 class BaseSite(ABC):
@@ -36,6 +36,19 @@ class BaseSite(ABC):
 
     #: fields the CLI wizard prompts for to build this site's search blob.
     search_schema: list[SearchField] = []
+
+    #: which universal filters the `query add` wizard asks about, narrowing the full
+    #: set in ``UNIVERSAL_FILTERS``. Say nothing and the site gets all of them, so
+    #: this is opt-in per adapter. Narrow it when the site's own search URL already
+    #: expresses a filter (Vinted carries price in its query string), so the wizard
+    #: stops asking a question the URL has already answered.
+    #:
+    #: This is about the PROMPTS only, never about semantics: the core still applies
+    #: every filter stored on a query, on every site (Decision 5). A filter left out
+    #: here is still settable via `query add --from-json` — which is the escape hatch
+    #: for deliberately narrowing further than the URL does (a €150 ceiling under a
+    #: URL that says €200).
+    universal_filters: tuple[str, ...] = UNIVERSAL_FILTERS
 
     #: Regex matched against the HOST of the user's search URL. Setting it declares
     #: "my search is a URL, in the ``url`` field" and buys two things: `query add`

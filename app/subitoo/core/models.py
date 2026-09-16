@@ -50,6 +50,15 @@ class Filters(BaseModel):
         return v
 
 
+#: The universal filters, in the order the CLI asks for them. Single source of truth
+#: for anything that iterates them rather than reading one by name — the `query add`
+#: wizard, and an adapter narrowing ``BaseSite.universal_filters``. Keep in sync with
+#: the fields of ``Filters`` above.
+UNIVERSAL_FILTERS: tuple[str, ...] = (
+    "price_min", "price_max", "shipping", "title_include", "title_exclude",
+)
+
+
 @dataclass(slots=True)
 class Notification:
     """What the core hands a notifier. The notifier decides how to render it."""

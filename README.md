@@ -50,8 +50,8 @@ then just `subitoo query list` from anywhere.
 2. **Paste the search URL.** Set up the keywords, category, region and sorting on the site
    itself, then copy the URL from your browser's address bar. (Result pages to scan defaults
    to 1 — that's 30 listings on Subito, 96 on Vinted.)
-3. **Add filters** — price range, shipping, title include/exclude (regex). Which of these
-   you actually need depends on the site — see below.
+3. **Add filters** — price range, shipping, title include/exclude (regex). You're only
+   asked for the ones that apply to the site you picked — see below.
 4. **Set the schedule** — a cron expression (default: every 4 hours).
 
 The search runs once immediately to seed a silent baseline (this also confirms the URL
@@ -69,10 +69,17 @@ appears once you pick a category while Vinted lets you set everything up front:
 | **Category, brand, size, condition** | in the pasted URL | in the pasted URL |
 | **Title regex** | Subitoo's `title_include` / `title_exclude` | same — the one thing neither site can express |
 
-So on Vinted you leave `price_min`, `price_max` and `shipping` blank and use only the title
-regex. If a Vinted URL carries a filter Subitoo can't pass through to Vinted's API, it's
-refused when you create the search rather than silently dropped, so your results always
-match what the URL says.
+The wizard knows this and only asks what applies, so on Vinted it goes straight to the
+title regex and tells you what it skipped. Subitoo asks Vinted for the very page your URL
+describes, so whatever filters it carries are applied by Vinted itself and your results
+always match what the URL says.
+
+Vinted's search is fuzzy, though: on a narrow query it pads the results with loosely
+related items (a pair of boots in a "meta quest" search). Those are genuine results — your
+own browser shows you the same page — so `title_include` is how you cut them out.
+
+Need a bound tighter than your URL's — €150 under a URL that says €200? The core still
+applies every filter on every site, so set it with `query add --from-json`.
 
 ### Title filters (regex)
 
@@ -106,6 +113,7 @@ Run via the wrapper (`./subitoo <cmd>`):
 
 ```
 query add [--from-json f]    # create a search (wizard or JSON)
+query edit <id>              # change filters, cron, name or pacing (not the URL)
 query list | show <id>       # inspect
 query enable|disable <id>    # pause switch
 query retry <id>             # clear an 'error' latch -> pending

@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -22,7 +22,7 @@ from rich.table import Table
 from subitoo.config import get_settings
 from subitoo.core import db, pipeline
 from subitoo.core.fetch import build_context
-from subitoo.core.models import Filters, Query, QueryStatus
+from subitoo.core.models import UNIVERSAL_FILTERS, Filters, Query, QueryStatus
 from subitoo.sites.base import BaseSite
 from subitoo import registry
 
@@ -107,9 +107,9 @@ def _parse_run_delay(raw: str | int) -> int:
     return val
 
 
-def _prompt_run_delay() -> int:
+def _prompt_run_delay(default: int = 5) -> int:
     raw = typer.prompt("delay before each run, seconds (human pacing; seeding skips it)",
-                       default="5")
+                       default=str(default))
     try:
         return _parse_run_delay(raw)
     except ValueError as e:
@@ -251,6 +251,71 @@ def _needs_resolve(adapter: BaseSite) -> bool:
     return type(adapter).resolve is not BaseSite.resolve
 
 
+#: How the wizard asks for each universal filter: (label, default). Keys are the
+#: fields of ``Filters``; which of them get asked is up to the adapter.
+_FILTER_PROMPTS: dict[str, tuple[str, str]] = {
+    "price_min": ("price_min", ""),
+    "price_max": ("price_max", ""),
+    "shipping": ("shipping (any/yes/no)", "any"),
+    "title_include": ("title_include (regex)", ""),
+    "title_exclude": ("title_exclude (regex)", ""),
+}
+
+
+#: Typed at an `edit` prompt, clears that filter. Needed because a prompt showing the
+#: current value as its default reads an empty line as "keep it" — there would
+#: otherwise be no way to turn a filter back off.
+CLEAR = "-"
+
+
+def _prompt_filters(adapter: BaseSite, current: Filters | None = None) -> Filters:
+    """Ask only for the universal filters this site declares (``universal_filters``).
+
+    A site whose own search URL already expresses a filter doesn't need the wizard
+    asking again — what's skipped is named on screen rather than left invisible, so
+    the behavior is discoverable without the README. Skipping is a prompting choice
+    only: the core still applies every stored filter on every site (Decision 5), and
+    `--from-json` can still set one the wizard passed over.
+
+    With ``current`` (the `edit` path) each prompt offers today's value as its default,
+    so Enter keeps it and ``CLEAR`` turns the filter off. A filter this site doesn't
+    ask about keeps whatever it already had rather than being silently reset — it may
+    have been set deliberately via `--from-json`.
+    """
+    asked = [n for n in UNIVERSAL_FILTERS if n in adapter.universal_filters]
+    skipped = [n for n in UNIVERSAL_FILTERS if n not in adapter.universal_filters]
+
+    console.print(f"[bold]Universal filters[/bold] "
+                  f"({'Enter = keep, ' + CLEAR + ' = clear' if current else 'blank = skip'})")
+    raw: dict[str, str] = {}
+    for name in asked:
+        label, default = _FILTER_PROMPTS[name]
+        if current is not None:
+            shown = getattr(current, name)
+            default = "" if shown is None else str(shown)
+        value = typer.prompt(f"  {label}", default=default,
+                             show_default=bool(default)).strip()
+        raw[name] = "" if value == CLEAR else value
+    if skipped:
+        kept = current is not None and any(
+            getattr(current, n) not in (None, "any") for n in skipped)
+        note = " (kept as-is)" if kept else ""
+        console.print(f"  [dim]{', '.join(skipped)}: not applicable on "
+                      f"{adapter.key} — skipped{note}[/dim]")
+    for name in skipped:  # untouched, not reset
+        if current is not None:
+            raw.setdefault(name, "" if getattr(current, name) is None
+                           else str(getattr(current, name)))
+
+    return Filters(
+        price_min=float(raw["price_min"]) if raw.get("price_min") else None,
+        price_max=float(raw["price_max"]) if raw.get("price_max") else None,
+        shipping=raw.get("shipping") or "any",
+        title_include=raw.get("title_include") or None,
+        title_exclude=raw.get("title_exclude") or None,
+    )
+
+
 def _run_wizard(site: str, prefill: dict | None = None) -> tuple[dict, Filters, str, str, int]:
     adapter = registry.get_site(site)
     search: dict = dict(prefill or {})  # e.g. the URL we inferred the site from
@@ -264,19 +329,7 @@ def _run_wizard(site: str, prefill: dict | None = None) -> tuple[dict, Filters, 
             search[f.name] = val
     _validate_search_or_exit(adapter, search)
 
-    console.print("[bold]Universal filters[/bold] (blank = skip)")
-    pmin = typer.prompt("  price_min", default="", show_default=False)
-    pmax = typer.prompt("  price_max", default="", show_default=False)
-    shipping = typer.prompt("  shipping (any/yes/no)", default="any")
-    t_inc = typer.prompt("  title_include (regex)", default="", show_default=False)
-    t_exc = typer.prompt("  title_exclude (regex)", default="", show_default=False)
-    filters = Filters(
-        price_min=float(pmin) if pmin else None,
-        price_max=float(pmax) if pmax else None,
-        shipping=shipping or "any",
-        title_include=t_inc or None,
-        title_exclude=t_exc or None,
-    )
+    filters = _prompt_filters(adapter)
 
     cron = typer.prompt("cron schedule", default="0 */4 * * *")  # default: every 4 hours
     _validate_cron_or_exit(cron)
@@ -383,6 +436,70 @@ def query_show(query_id: int) -> None:
         console.print(f"[red]No query {query_id}[/red]")
         raise typer.Exit(1)
     console.print_json(json.dumps(_query_json(q)))
+
+
+@query_app.command("edit")
+def query_edit(
+    query_id: int,
+    from_json: Optional[Path] = typer.Option(
+        None, "--from-json", help="Apply a partial spec instead of prompting"),
+) -> None:
+    """Change a saved query's filters, schedule, name or pacing.
+
+    Not its search URL: that changes which listings exist, and the adapter may have
+    resolved add-time state from it (Subito captures an api_url). Re-point a search
+    with `query rm` + `query add` instead.
+
+    Editing touches the definition only — the seen-listings history stays, so nothing
+    you've already been told about is announced again. Widening a filter is the case
+    to watch: listings it used to exclude were never recorded, so the next run sees
+    them as new and notifies. `query test` first to see what you'd get.
+    """
+    conn = _conn()
+    q = db.get_query(conn, query_id)
+    if not q:
+        console.print(f"[red]No query {query_id}[/red]")
+        raise typer.Exit(1)
+    registry.load_all()
+
+    if from_json:
+        spec = json.loads(from_json.read_text())
+        fields: dict[str, Any] = {}
+        if "filters" in spec:
+            fields["filters"] = Filters.model_validate(spec["filters"])
+        if "cron" in spec:
+            _validate_cron_or_exit(spec["cron"])
+            fields["cron"] = spec["cron"]
+        if "name" in spec:
+            fields["name"] = spec["name"]
+        if "run_delay_seconds" in spec:
+            try:
+                fields["run_delay_seconds"] = _parse_run_delay(spec["run_delay_seconds"])
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(1) from None
+        if not fields:
+            console.print("[yellow]Nothing to change[/yellow] "
+                          "(recognized keys: filters, cron, name, run_delay_seconds)")
+            raise typer.Exit(1)
+        db.update_query(conn, query_id, **fields)
+        console.print(f"[green]Updated query {query_id}[/green] "
+                      f"({', '.join(sorted(fields))})")
+        return
+
+    console.print(f"Editing query [bold]{query_id}[/bold] ({q.name}) on {q.site}")
+    filters = _prompt_filters(registry.get_site(q.site), current=q.filters)
+
+    cron = typer.prompt("cron schedule", default=q.cron)
+    _validate_cron_or_exit(cron)
+    _preview_cron(cron)
+    delay = _prompt_run_delay(default=q.run_delay_seconds)
+    name = typer.prompt("Query name", default=q.name)
+
+    db.update_query(conn, query_id, filters=filters, cron=cron, name=name,
+                    run_delay_seconds=delay)
+    console.print(f"[green]Updated query {query_id}[/green] ({name}) — "
+                  f"run [bold]query test {query_id}[/bold] to see what it matches now.")
 
 
 @query_app.command("rm")
