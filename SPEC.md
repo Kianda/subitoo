@@ -206,6 +206,7 @@ browser→HTTP cookie handoff, so the whole chain is one consistent real browser
 |---|---|---|---|
 | **Subito** | browser-only | Add-time `resolve()`: load the pasted page, dismiss the cookie wall, toggle a filter so Subito fires its own `/search/items`, capture that URL. Run-time `fetch()`: one warmed session replays it per page (`start += 30`, human-paced), parses the JSON. All in-browser. | `True` |
 | **Vinted** | open API | direct `curl_cffi` to the prefiltered URL's API | `False` |
+| **AutoScout24** | open page | direct `curl_cffi` to the pasted search URL (`page=N`), parses the Next.js `__NEXT_DATA__` JSON; dedups the sponsored slots that repeat an organic result | `False` |
 
 *Escape hatch (Decision 12):* if a future site can't be fetched with Camoufox, the
 `BrowserClient` backend is swappable — the only case that justifies a second browser

@@ -12,7 +12,7 @@ A self-hosted, **modular** marketplace scraper.
 
 ## Features
 
-- Watch multiple marketplace sites — **Subito.it** and **Vinted** (more coming soon...)
+- Watch multiple marketplace sites — **Subito.it**, **Vinted** and **AutoScout24** (more coming soon...)
 - Per-query schedules (each saved search has its own cron)
 - Alerts on **new** matches and **price changes**
 - Universal filters: price range, shipping present/absent, title include/exclude (regex)
@@ -46,10 +46,10 @@ then just `subitoo query list` from anywhere.
 
 `./subitoo query add` walks you through it:
 
-1. **Pick a site** — `subito` or `vinted`.
+1. **Pick a site** — `subito`, `vinted` or `autoscout24`.
 2. **Paste the search URL.** Set up the keywords, category, region and sorting on the site
    itself, then copy the URL from your browser's address bar. (Result pages to scan defaults
-   to 1 — that's 30 listings on Subito, 96 on Vinted.)
+   to 1 — that's 30 listings on Subito, 96 on Vinted, 20 on AutoScout24.)
 3. **Add filters** — price range, shipping, title include/exclude (regex). You're only
    asked for the ones that apply to the site you picked — see below.
 4. **Set the schedule** — a cron expression (default: every 4 hours).
@@ -59,24 +59,30 @@ works); you start getting alerts from the next run.
 
 ### Which filters go where
 
-The two sites draw the line in different places, because Subito's own price filter only
-appears once you pick a category while Vinted lets you set everything up front:
+The sites draw the line in different places, because Subito's own price filter only
+appears once you pick a category while Vinted and AutoScout24 let you set everything up
+front:
 
-| | Subito.it | Vinted |
-|---|---|---|
-| **Price** | Subitoo's `price_min` / `price_max` | on Vinted — it rides along in the URL |
-| **Shipping** | Subitoo's `shipping` filter | n/a, every Vinted item ships |
-| **Category, brand, size, condition** | in the pasted URL | in the pasted URL |
-| **Title regex** | Subitoo's `title_include` / `title_exclude` | same — the one thing neither site can express |
+| | Subito.it | Vinted | AutoScout24 |
+|---|---|---|---|
+| **Price** | Subitoo's `price_min` / `price_max` | on Vinted — it rides along in the URL | on AutoScout24 — in the URL |
+| **Shipping** | Subitoo's `shipping` filter | n/a, every Vinted item ships | n/a, cars aren't shipped |
+| **Category, brand, size, condition** | in the pasted URL | in the pasted URL | make, model, year, km, gearbox, radius… in the pasted URL |
+| **Title regex** | Subitoo's `title_include` / `title_exclude` | same — the one thing neither site can express | same, matched on make + model + version |
 
-The wizard knows this and only asks what applies, so on Vinted it goes straight to the
-title regex and tells you what it skipped. Subitoo asks Vinted for the very page your URL
+The wizard knows this and only asks what applies, so on Vinted and AutoScout24 it goes
+straight to the title regex and tells you what it skipped. Subitoo asks Vinted for the very page your URL
 describes, so whatever filters it carries are applied by Vinted itself and your results
 always match what the URL says.
 
 Vinted's search is fuzzy, though: on a narrow query it pads the results with loosely
 related items (a pair of boots in a "meta quest" search). Those are genuine results — your
 own browser shows you the same page — so `title_include` is how you cut them out.
+
+On AutoScout24, sort the search by **most recent** before copying the URL: listings carry
+no publication date, so that sort order is what keeps new cars on the first page. Paste the
+URL from the address bar rather than typing one — AutoScout24 silently drops parameters it
+doesn't recognise.
 
 Need a bound tighter than your URL's — €150 under a URL that says €200? The core still
 applies every filter on every site, so set it with `query add --from-json`.
