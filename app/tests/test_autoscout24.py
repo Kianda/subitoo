@@ -171,3 +171,28 @@ def test_fetch_raises_on_a_block():
     http = SimpleNamespace(get=lambda url, **kw: SimpleNamespace(status_code=403, text="no"))
     with pytest.raises(RuntimeError, match="HTTP 403"):
         list(AutoScout24Site().fetch({"url": SEARCH_URL}, SimpleNamespace(http=http)))
+
+
+def test_fetch_raises_when_a_redirect_drops_the_filters():
+    """AutoScout24 renamed `/lst/bmw/3-series` to `/lst/bmw/serie-3` and the redirect
+    kept only price/country/sort: the answer was a valid page of diesels and estates
+    from any year. That must fail the run, not notify on them."""
+    landed = ("https://www.autoscout24.it/lst/bmw/serie-3?priceto=20000&cy=I"
+              "&ustate=N%2CU&sort=age&desc=1&page=1&atype=C")
+    html = FIXTURE.read_text()
+    http = SimpleNamespace(
+        get=lambda url, **kw: SimpleNamespace(status_code=200, text=html, url=landed))
+    search = {"url": "https://www.autoscout24.it/lst/bmw/3-series?atype=C&body=2&cy=I"
+                     "&fuel=B&ustate=N%2CU&fregfrom=2007&fregto=2007&priceto=20000"
+                     "&sort=age&desc=1"}
+    with pytest.raises(RuntimeError, match="dropped body, fregfrom, fregto, fuel"):
+        list(AutoScout24Site().fetch(search, SimpleNamespace(http=http)))
+
+
+def test_a_redirect_that_keeps_every_filter_is_fine():
+    """Re-encoded values and params the site adds on its own are not a lost filter."""
+    asked = page_url("https://www.autoscout24.it/lst/bmw/serie-3?cy=I&ustate=N%2CU&fuel=B")
+    autoscout24.check_redirect(
+        asked, "https://www.autoscout24.it/lst/bmw/serie-3?fuel=B&ustate=N%2CU&cy=I&page=1&atype=C")
+    autoscout24.check_redirect(asked, asked)
+    autoscout24.check_redirect(asked, None)

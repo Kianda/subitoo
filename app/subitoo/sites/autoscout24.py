@@ -15,10 +15,13 @@ Three facts drive the design:
   the URL   is replayed as the user pasted it, plus our `page` cursor. The user builds
             the search on the site (make, model, years, km, price, gearbox, radius…)
             and every filter rides along in the path and query string, so nothing has
-            to be translated. AutoScout24 also rewrites what it doesn't like — a
-            localized path (`serie-3`) is redirected to the canonical one (`3-series`)
-            and an unknown param is dropped — which is why the user should paste the
-            URL from the address bar rather than build one by hand.
+            to be translated. AutoScout24 also rewrites what it doesn't like — an
+            unknown param is dropped, and a renamed path (`/lst/bmw/3-series` became
+            `/lst/bmw/serie-3`) is redirected to the new one *losing most filters on
+            the way* (fuel, gearbox, power, body, years), which still returns a valid,
+            much wider search. So a redirect that drops any of the pasted params fails
+            the run (``check_redirect``) instead of notifying on cars outside the
+            search; the fix is to paste the URL again from the address bar.
   sponsored listings (`searchResultType: "Nfm"`) are injected at the top of each page.
             They do match the search, so they are kept, but the same car then shows up
             again as an organic result on another page. The core dedups by id, yet a
@@ -82,6 +85,25 @@ def page_url(url: str, page: int = 1) -> str:
     query.append(("page", str(page)))
     return urlunsplit((parts.scheme, parts.netloc, parts.path,
                        urlencode(query, safe=","), ""))
+
+
+def check_redirect(asked: str, landed: str | None) -> None:
+    """Raise if AutoScout24 redirected the search somewhere that dropped its filters.
+
+    Only the param *names* are compared: the site may re-encode or reorder values
+    (`ustate=N%2CU` → `N,U`) or add its own, which is harmless. A param that vanished
+    means the search the site answered is not the one the user built.
+    """
+    if not landed or landed == asked:
+        return
+    kept = {k for k, _ in parse_qsl(urlsplit(landed).query)}
+    lost = sorted({k for k, _ in parse_qsl(urlsplit(asked).query)} - kept)
+    if lost:
+        raise RuntimeError(
+            f"autoscout24: the site redirected the search to {landed} and dropped "
+            f"{', '.join(lost)} — the path was probably renamed; paste the search URL "
+            f"again from the browser's address bar"
+        )
 
 
 def extract_page(html: str) -> dict[str, Any]:
@@ -222,6 +244,7 @@ class AutoScout24Site(BaseSite):
                 f"autoscout24: {url} -> HTTP {resp.status_code} "
                 f"(a block/challenge, or a search the site rejected?): {snippet!r}"
             )
+        check_redirect(url, getattr(resp, "url", None))
         return extract_page(resp.text)
 
     def fetch(self, search: dict[str, Any], ctx: FetchContext) -> Iterable[Listing]:
