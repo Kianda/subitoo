@@ -29,6 +29,15 @@ def test_first_run_seeds_silently(conn, recorder):
     assert len(db.list_listings(conn, qid)) == 2
 
 
+def test_duplicate_ids_in_one_fetch_do_not_break_the_seed(conn, recorder):
+    qid = mkquery(conn)
+    FakeSite.to_return = [make_listing("A"), make_listing("B"), make_listing("A")]
+    res = pipeline.run_query(conn, qid, now_ts=1000, send=recorder)
+    assert db.get_query(conn, qid).status == QueryStatus.PENDING
+    assert res.n_found == 2
+    assert len(db.list_listings(conn, qid)) == 2
+
+
 def test_new_listing_notifies(conn, recorder):
     qid = mkquery(conn)
     seed(conn, qid, [make_listing("A"), make_listing("B")], recorder)

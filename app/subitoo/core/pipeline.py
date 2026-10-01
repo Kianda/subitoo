@@ -115,7 +115,9 @@ def run_query(conn, query_id: int, *, now_ts: int | None = None,
         # waiting, and a first-run baseline shouldn't stall (migration 0002).
         if q.seeded and q.run_delay_seconds > 0:
             sleep(q.run_delay_seconds + random.randint(0, 1000) / 1000)
-        listings = list(adapter.fetch(q.search, ctx))
+        # One listing per id: paging a live result set (new ads shift the order between
+        # page requests) can return the same ad twice, which would break the seed insert.
+        listings = list({x.site_listing_id: x for x in adapter.fetch(q.search, ctx)}.values())
         matched = apply_filters(listings, q.filters)
         res.n_found = len(matched)
 
