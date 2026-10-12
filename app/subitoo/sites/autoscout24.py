@@ -23,10 +23,9 @@ Three facts drive the design:
             the run (``check_redirect``) instead of notifying on cars outside the
             search; the fix is to paste the URL again from the address bar.
   sponsored listings (`searchResultType: "Nfm"`) are injected at the top of each page.
-            They do match the search, so they are kept, but the same car then shows up
-            again as an organic result on another page. The core dedups by id, yet a
-            run that returns the same id twice fails the first-run seeding, so ids are
-            deduplicated here, within the run.
+            They do match the search, so they are kept; the same car then shows up
+            again as an organic result, on the same or another page, and the core's
+            per-run dedup by id folds the two.
   no dates  the listing carries no publication timestamp, only the first registration
             of the car. Sorting the pasted search by `sort=age&desc=1` ("most recent
             first") is what keeps new listings on page 1; posting time stays unknown.
@@ -254,14 +253,9 @@ class AutoScout24Site(BaseSite):
         max_pages = max(1, int(search.get("max_pages") or 1))
 
         out: list[Listing] = []
-        seen: set[str] = set()
         for page_no in range(1, max_pages + 1):
             page = self._get_page(ctx, page_url(url, page_no))
-            for lst in parse_items(page, root):
-                # a sponsored car reappears as an organic one on another page
-                if lst.site_listing_id not in seen:
-                    seen.add(lst.site_listing_id)
-                    out.append(lst)
+            out.extend(parse_items(page, root))
 
             total_pages = min(page.get("numberOfPages") or 1, MAX_SITE_PAGES)
             if page_no >= total_pages:

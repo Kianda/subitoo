@@ -84,8 +84,8 @@ def test_price_on_request_is_none(page):
 
 
 def test_sponsored_slots_duplicate_an_organic_result(page):
-    """The fixture's premise, and the reason ``fetch`` dedups: the page serves the same
-    car twice, once as a sponsored slot and once organically."""
+    """The fixture's premise: the page serves the same car twice, once as a sponsored
+    slot and once organically. The core folds them (``run_query`` dedups by id)."""
     ids = [lst.site_listing_id for lst in parse_items(page, ROOT)]
     assert len(ids) - len(set(ids)) == 1
 
@@ -151,19 +151,15 @@ class _FakeHttp:
         return SimpleNamespace(status_code=200, text=self.pages[page_no])
 
 
-def test_fetch_dedups_within_the_run_and_stops_at_max_pages(monkeypatch):
-    """The core's first-run seeding inserts blindly, so an id returned twice fails the
-    run on the UNIQUE constraint — and a sponsored car does reappear organically. The
-    run must hand back each car once. Two identical pages → the five cars' four
-    distinct ids, and no page 3."""
+def test_fetch_stops_at_max_pages(monkeypatch):
+    """Two pages asked, two fetched, no page 3 — even though the site reports more."""
     monkeypatch.setattr(autoscout24.time, "sleep", lambda s: None)
     html = FIXTURE.read_text()
     http = _FakeHttp({1: html, 2: html})
     ctx = SimpleNamespace(http=http)
 
     listings = list(AutoScout24Site().fetch({"url": SEARCH_URL, "max_pages": "2"}, ctx))
-    ids = [lst.site_listing_id for lst in listings]
-    assert len(ids) == len(set(ids)) == 4
+    assert len(listings) == 10
     assert len(http.asked) == 2
 
 
